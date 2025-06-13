@@ -2,7 +2,7 @@
   "buildCommand": "pnpm run build",
   "outputDirectory": ".next",
   "framework": "nextjs",
-  "installCommand": "pnpm install --frozen-lockfile --prefer-offline",
+  "installCommand": "pnpm install --no-frozen-lockfile",
   "devCommand": "pnpm run dev",
   "regions": ["iad1"],
   "functions": {
