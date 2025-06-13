@@ -193,7 +193,7 @@ export default function DashboardPage() {
 
   return (
     <ProtectedRoute>
-      <ChatLayout>
+    <ChatLayout>
         {/* Mobile: Show tabs or chat window */}
         {isMobileView ? (
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -463,11 +463,11 @@ export default function DashboardPage() {
             {/* Right Side - Chat Window or Welcome */}
             <div className="flex-1">
               {selectedChat ? (
-                <ChatWindow
-                  chat={selectedChat}
+      <ChatWindow
+        chat={selectedChat}
                   messages={messages}
                   onSendMessage={handleSendMessage}
-                  onShowProfile={() => setShowProfile(true)}
+        onShowProfile={() => setShowProfile(true)}
                   currentUser={userProfile}
                 />
               ) : (
@@ -496,7 +496,7 @@ export default function DashboardPage() {
             onClose={() => setShowProfile(false)} 
           />
         )}
-      </ChatLayout>
+    </ChatLayout>
     </ProtectedRoute>
   )
 }
