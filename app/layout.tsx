@@ -1,5 +1,5 @@
 import type React from "react"
-import type { Metadata } from "next"
+import type { Metadata, Viewport } from "next"
 import { Inter } from "next/font/google"
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
@@ -11,7 +11,23 @@ const inter = Inter({ subsets: ["latin"] })
 export const metadata: Metadata = {
   title: "InstaTalk - Modern Chat Application",
   description: "A modern chat application with glassmorphism UI",
-    generator: 'v0.dev'
+  generator: 'v0.dev',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'InstaTalk',
+  },
+  formatDetection: {
+    telephone: false,
+  },
+}
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  themeColor: '#20a370',
 }
 
 export default function RootLayout({

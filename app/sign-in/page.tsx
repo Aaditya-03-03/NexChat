@@ -55,28 +55,28 @@ export default function SignInPage() {
 
   return (
     <AuthLayout>
-      <div className="flex flex-col space-y-2 text-center mb-4">
-        <h1 className="text-3xl font-bold tracking-tight">Welcome back</h1>
-        <p className="text-muted-foreground">Sign in to your InstaTalk account</p>
+      <div className="flex flex-col space-y-2 text-center mb-4 md:mb-6">
+        <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Welcome back</h1>
+        <p className="text-sm md:text-base text-muted-foreground">Sign in to your InstaTalk account</p>
       </div>
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-4 md:space-y-6">
+        <div className="space-y-3 md:space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email" className="text-sm md:text-base">Email</Label>
             <Input 
               id="email" 
               type="email" 
               placeholder="name@example.com" 
               required 
-              className="glass-input"
+              className="glass-input h-10 md:h-11"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
           </div>
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <Label htmlFor="password">Password</Label>
-              <Link href="/forgot-password" className="text-sm text-primary hover:underline">
+              <Label htmlFor="password" className="text-sm md:text-base">Password</Label>
+              <Link href="/forgot-password" className="text-xs md:text-sm text-primary hover:underline">
                 Forgot password?
               </Link>
             </div>
@@ -86,14 +86,14 @@ export default function SignInPage() {
                 type={showPassword ? "text" : "password"}
                 placeholder="••••••••"
                 required
-                className="glass-input pr-10"
+                className="glass-input pr-10 h-10 md:h-11"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground h-8 w-8 flex items-center justify-center"
               >
                 {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 <span className="sr-only">{showPassword ? "Hide password" : "Show password"}</span>
@@ -101,21 +101,21 @@ export default function SignInPage() {
             </div>
           </div>
         </div>
-        <Button type="submit" className="w-full bg-primary hover:bg-primary/90 text-white" disabled={isLoading}>
+        <Button type="submit" className="w-full bg-primary hover:bg-primary/90 text-white h-10 md:h-11" disabled={isLoading}>
           {isLoading ? (
             <div className="flex items-center gap-2">
               <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-              <span>Signing in...</span>
+              <span className="text-sm md:text-base">Signing in...</span>
             </div>
           ) : (
             <div className="flex items-center gap-2">
               <LogIn className="h-4 w-4" />
-              <span>Sign in</span>
+              <span className="text-sm md:text-base">Sign in</span>
             </div>
           )}
         </Button>
       </form>
-      <div className="mt-6">
+      <div className="mt-4 md:mt-6">
         <div className="relative">
           <div className="absolute inset-0 flex items-center">
             <Separator />
@@ -127,7 +127,7 @@ export default function SignInPage() {
         <div className="mt-4 grid grid-cols-1 gap-2">
           <Button 
             variant="outline" 
-            className="glass-button"
+            className="glass-button h-10 md:h-11"
             onClick={handleGoogleSignIn}
             disabled={isLoading}
           >
@@ -149,11 +149,11 @@ export default function SignInPage() {
                 fill="#EA4335"
               />
             </svg>
-            Sign in with Google
+            <span className="text-sm md:text-base">Sign in with Google</span>
           </Button>
         </div>
       </div>
-      <div className="mt-6 text-center text-sm">
+      <div className="mt-4 md:mt-6 text-center text-xs md:text-sm">
         Don&apos;t have an account?{" "}
         <Link href="/sign-up" className="text-primary hover:underline">
           Sign up

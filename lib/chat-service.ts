@@ -14,6 +14,7 @@ import {
   Timestamp,
   arrayUnion,
   arrayRemove,
+  getDoc,
 } from 'firebase/firestore';
 import { db } from './firebase';
 
@@ -27,6 +28,11 @@ export interface Message {
   type: 'text' | 'image' | 'file';
   timestamp: Timestamp;
   readBy: string[];
+  edited?: boolean;
+  editedAt?: Timestamp;
+  reactions?: {
+    [emoji: string]: string[];
+  };
   replyTo?: {
     messageId: string;
     content: string;
@@ -288,6 +294,204 @@ export class ChatService {
           return { success: true };
         } else {
           return { success: false, error: 'Only admins can remove users' };
+        }
+      }
+      return { success: false, error: 'Chat not found' };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  // Edit message
+  static async editMessage(chatId: string, messageId: string, newContent: string, userId: string) {
+    try {
+      const messageRef = doc(db, 'chats', chatId, 'messages', messageId);
+      const messageDoc = await getDocs(query(collection(db, 'chats', chatId, 'messages'), where('__name__', '==', messageId)));
+      
+      if (!messageDoc.empty) {
+        const messageData = messageDoc.docs[0].data();
+        if (messageData.userId === userId) {
+          await updateDoc(messageRef, {
+            content: newContent,
+            edited: true,
+            editedAt: serverTimestamp(),
+          });
+          return { success: true };
+        } else {
+          return { success: false, error: 'You can only edit your own messages' };
+        }
+      }
+      return { success: false, error: 'Message not found' };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  // Add reaction to message
+  static async addReaction(chatId: string, messageId: string, userId: string, reaction: string) {
+    try {
+      const messageRef = doc(db, 'chats', chatId, 'messages', messageId);
+      await updateDoc(messageRef, {
+        [`reactions.${reaction}`]: arrayUnion(userId),
+      });
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  // Remove reaction from message
+  static async removeReaction(chatId: string, messageId: string, userId: string, reaction: string) {
+    try {
+      const messageRef = doc(db, 'chats', chatId, 'messages', messageId);
+      await updateDoc(messageRef, {
+        [`reactions.${reaction}`]: arrayRemove(userId),
+      });
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  // Search messages in chat
+  static async searchMessages(chatId: string, query: string) {
+    try {
+      const messagesRef = collection(db, 'chats', chatId, 'messages');
+      const q = query(
+        messagesRef,
+        where('content', '>=', query),
+        where('content', '<=', query + '\uf8ff'),
+        orderBy('content'),
+        orderBy('timestamp', 'desc'),
+        limit(20)
+      );
+      
+      const snapshot = await getDocs(q);
+      const messages: Message[] = [];
+      snapshot.forEach((doc) => {
+        messages.push({ id: doc.id, ...doc.data() } as Message);
+      });
+      
+      return { success: true, messages };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  // Update user profile
+  static async updateUserProfile(userId: string, profileData: { displayName?: string; photoURL?: string; bio?: string }) {
+    try {
+      const userRef = doc(db, 'users', userId);
+      await updateDoc(userRef, {
+        ...profileData,
+        updatedAt: serverTimestamp(),
+      });
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  // Get user profile
+  static async getUserProfile(userId: string) {
+    try {
+      const userRef = doc(db, 'users', userId);
+      const userDoc = await getDoc(userRef);
+      
+      if (userDoc.exists()) {
+        return { success: true, profile: { id: userDoc.id, ...userDoc.data() } };
+      } else {
+        return { success: false, error: 'User not found' };
+      }
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  // Archive chat
+  static async archiveChat(chatId: string, userId: string) {
+    try {
+      const userChatRef = doc(db, 'userChats', `${userId}_${chatId}`);
+      await updateDoc(userChatRef, {
+        archived: true,
+        archivedAt: serverTimestamp(),
+      });
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  // Unarchive chat
+  static async unarchiveChat(chatId: string, userId: string) {
+    try {
+      const userChatRef = doc(db, 'userChats', `${userId}_${chatId}`);
+      await updateDoc(userChatRef, {
+        archived: false,
+        archivedAt: null,
+      });
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  // Mute chat notifications
+  static async muteChat(chatId: string, userId: string, muted: boolean) {
+    try {
+      const userChatRef = doc(db, 'userChats', `${userId}_${chatId}`);
+      await updateDoc(userChatRef, {
+        muted,
+        mutedAt: muted ? serverTimestamp() : null,
+      });
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  // Pin message
+  static async pinMessage(chatId: string, messageId: string, userId: string) {
+    try {
+      const chatRef = doc(db, 'chats', chatId);
+      const chatDoc = await getDocs(query(collection(db, 'chats'), where('__name__', '==', chatId)));
+      
+      if (!chatDoc.empty) {
+        const chatData = chatDoc.docs[0].data();
+        if (chatData.admins?.includes(userId) || chatData.type === 'direct') {
+          await updateDoc(chatRef, {
+            pinnedMessage: {
+              messageId,
+              pinnedBy: userId,
+              pinnedAt: serverTimestamp(),
+            },
+          });
+          return { success: true };
+        } else {
+          return { success: false, error: 'Only admins can pin messages' };
+        }
+      }
+      return { success: false, error: 'Chat not found' };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  // Unpin message
+  static async unpinMessage(chatId: string, userId: string) {
+    try {
+      const chatRef = doc(db, 'chats', chatId);
+      const chatDoc = await getDocs(query(collection(db, 'chats'), where('__name__', '==', chatId)));
+      
+      if (!chatDoc.empty) {
+        const chatData = chatDoc.docs[0].data();
+        if (chatData.admins?.includes(userId) || chatData.type === 'direct') {
+          await updateDoc(chatRef, {
+            pinnedMessage: null,
+          });
+          return { success: true };
+        } else {
+          return { success: false, error: 'Only admins can unpin messages' };
         }
       }
       return { success: false, error: 'Chat not found' };

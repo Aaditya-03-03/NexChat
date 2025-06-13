@@ -2,14 +2,16 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, User, Shield, Bell, Palette, LogOut } from "lucide-react"
+import { ArrowLeft, User, Shield, Bell, Palette, LogOut, Camera, Save } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Separator } from "@/components/ui/separator"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { ProtectedRoute } from "@/components/protected-route"
 import { useAuthContext } from "@/components/auth-provider"
+import { ProfileEditor } from "@/components/profile-editor"
 import { toast } from "sonner"
 
 export default function SettingsPage() {
@@ -18,6 +20,7 @@ export default function SettingsPage() {
   const [notifications, setNotifications] = useState(true)
   const [darkMode, setDarkMode] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [showProfileEditor, setShowProfileEditor] = useState(false)
 
   const handleLogout = async () => {
     setIsLoading(true)
@@ -31,6 +34,11 @@ export default function SettingsPage() {
     }
     
     setIsLoading(false)
+  }
+
+  const handleProfileUpdate = (updatedProfile: any) => {
+    // This would update the auth context
+    toast.success("Profile updated successfully")
   }
 
   return (
@@ -65,6 +73,20 @@ export default function SettingsPage() {
                 </div>
                 
                 <div className="space-y-4">
+                  {/* Profile Picture */}
+                  <div className="flex items-center gap-4">
+                    <Avatar className="h-16 w-16">
+                      <AvatarImage src={userProfile?.photoURL} />
+                      <AvatarFallback>
+                        <User className="h-8 w-8" />
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <h3 className="font-medium">{userProfile?.displayName || "User"}</h3>
+                      <p className="text-sm text-muted-foreground">{userProfile?.email}</p>
+                    </div>
+                  </div>
+
                   <div>
                     <Label htmlFor="displayName">Display Name</Label>
                     <Input
@@ -93,6 +115,14 @@ export default function SettingsPage() {
                       readOnly
                     />
                   </div>
+
+                  <Button 
+                    onClick={() => setShowProfileEditor(true)}
+                    className="w-full"
+                  >
+                    <Camera className="mr-2 h-4 w-4" />
+                    Edit Profile
+                  </Button>
                 </div>
               </div>
 
@@ -123,6 +153,13 @@ export default function SettingsPage() {
                     </div>
                     <Switch checked={true} />
                   </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium">Message Previews</p>
+                      <p className="text-sm text-muted-foreground">Show message content in notifications</p>
+                    </div>
+                    <Switch checked={true} />
+                  </div>
                 </div>
               </div>
 
@@ -146,6 +183,49 @@ export default function SettingsPage() {
                       onCheckedChange={setDarkMode}
                     />
                   </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium">Compact Mode</p>
+                      <p className="text-sm text-muted-foreground">Reduce spacing for more content</p>
+                    </div>
+                    <Switch checked={false} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Privacy & Security */}
+              <div className="glass-card p-6">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="h-10 w-10 rounded-full bg-green-500/20 flex items-center justify-center">
+                    <Shield className="h-5 w-5 text-green-500" />
+                  </div>
+                  <h2 className="text-xl font-semibold">Privacy & Security</h2>
+                </div>
+                
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium">Read Receipts</p>
+                      <p className="text-sm text-muted-foreground">Show when messages are read</p>
+                    </div>
+                    <Switch checked={true} />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium">Online Status</p>
+                      <p className="text-sm text-muted-foreground">Show when you're online</p>
+                    </div>
+                    <Switch checked={true} />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium">Two-Factor Authentication</p>
+                      <p className="text-sm text-muted-foreground">Add extra security to your account</p>
+                    </div>
+                    <Button variant="outline" size="sm">
+                      Enable
+                    </Button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -156,13 +236,25 @@ export default function SettingsPage() {
               <div className="glass-card p-6">
                 <h3 className="font-semibold mb-4">Quick Actions</h3>
                 <div className="space-y-2">
+                  <Button 
+                    variant="outline" 
+                    className="w-full justify-start glass-button"
+                    onClick={() => setShowProfileEditor(true)}
+                  >
+                    <User className="h-4 w-4 mr-2" />
+                    Edit Profile
+                  </Button>
                   <Button variant="outline" className="w-full justify-start glass-button">
                     <Shield className="h-4 w-4 mr-2" />
                     Privacy & Security
                   </Button>
                   <Button variant="outline" className="w-full justify-start glass-button">
-                    <User className="h-4 w-4 mr-2" />
-                    Edit Profile
+                    <Bell className="h-4 w-4 mr-2" />
+                    Notifications
+                  </Button>
+                  <Button variant="outline" className="w-full justify-start glass-button">
+                    <Palette className="h-4 w-4 mr-2" />
+                    Appearance
                   </Button>
                 </div>
               </div>
@@ -191,11 +283,24 @@ export default function SettingsPage() {
                   <p>Modern messaging for everyone</p>
                   <Separator className="my-2" />
                   <p>Built with Next.js & Firebase</p>
+                  <p>Real-time messaging</p>
+                  <p>File sharing</p>
+                  <p>Group chats</p>
                 </div>
               </div>
             </div>
           </div>
         </div>
+
+        {/* Profile Editor Modal */}
+        {showProfileEditor && (
+          <ProfileEditor
+            user={user}
+            userProfile={userProfile}
+            onClose={() => setShowProfileEditor(false)}
+            onUpdate={handleProfileUpdate}
+          />
+        )}
       </div>
     </ProtectedRoute>
   )
