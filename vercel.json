@@ -1,9 +1,9 @@
 {
-  "buildCommand": "npm run build",
+  "buildCommand": "pnpm run build",
   "outputDirectory": ".next",
   "framework": "nextjs",
-  "installCommand": "npm install",
-  "devCommand": "npm run dev",
+  "installCommand": "pnpm install --frozen-lockfile --prefer-offline",
+  "devCommand": "pnpm run dev",
   "regions": ["iad1"],
   "functions": {
     "app/**/*.tsx": {
