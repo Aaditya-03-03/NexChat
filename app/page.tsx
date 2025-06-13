@@ -11,7 +11,7 @@ export default function HomePage() {
           <div className="flex h-7 w-7 md:h-8 md:w-8 items-center justify-center rounded-full bg-primary">
             <MessageSquare className="h-3 w-3 md:h-4 md:w-4 text-white" />
           </div>
-          <span className="text-lg md:text-xl font-bold">InstaTalk</span>
+          <span className="text-lg md:text-xl font-bold">Nex Chat</span>
         </div>
         <div className="flex items-center gap-1 md:gap-2">
           <Button asChild variant="ghost" size="sm" className="h-8 md:h-10 rounded-xl text-xs md:text-sm">
@@ -34,7 +34,7 @@ export default function HomePage() {
           <div className="max-w-5xl mx-auto text-center relative z-10">
             <h1 className="text-3xl md:text-5xl lg:text-6xl font-bold mb-4 md:mb-6 animate-fade-in">Modern Messaging for Everyone</h1>
             <p className="text-lg md:text-xl lg:text-2xl text-muted-foreground mb-6 md:mb-8 max-w-3xl mx-auto animate-fade-in px-2">
-              InstaTalk brings a fresh, futuristic approach to messaging with a beautiful glassmorphism UI and powerful
+              Nex Chat brings a fresh, futuristic approach to messaging with a beautiful glassmorphism UI and powerful
               features.
             </p>
             <div className="flex flex-col sm:flex-row gap-3 md:gap-4 justify-center animate-fade-in px-2">
@@ -103,7 +103,7 @@ export default function HomePage() {
           <div className="max-w-3xl mx-auto glass-card p-6 md:p-8 text-center">
             <h2 className="text-2xl md:text-3xl font-bold mb-3 md:mb-4">Ready to get started?</h2>
             <p className="text-sm md:text-base text-muted-foreground mb-4 md:mb-6">
-              Join thousands of users already enjoying InstaTalk's modern messaging experience.
+              Join thousands of users already enjoying Nex Chat's modern messaging experience.
             </p>
             <Button asChild size="lg" className="bg-primary hover:bg-primary/90 text-white rounded-xl px-6 md:px-8 h-11 md:h-12">
               <Link href="/sign-up">Create Account</Link>
@@ -118,7 +118,7 @@ export default function HomePage() {
             <div className="flex h-7 w-7 md:h-8 md:w-8 items-center justify-center rounded-full bg-primary">
               <MessageSquare className="h-3 w-3 md:h-4 md:w-4 text-white" />
             </div>
-            <span className="text-lg md:text-xl font-bold">InstaTalk</span>
+            <span className="text-lg md:text-xl font-bold">Nex Chat</span>
           </div>
           <div className="flex gap-4 md:gap-6 text-sm md:text-base">
             <Link href="#" className="text-muted-foreground hover:text-foreground">

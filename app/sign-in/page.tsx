@@ -57,7 +57,7 @@ export default function SignInPage() {
     <AuthLayout>
       <div className="flex flex-col space-y-2 text-center mb-4 md:mb-6">
         <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Welcome back</h1>
-        <p className="text-sm md:text-base text-muted-foreground">Sign in to your InstaTalk account</p>
+        <p className="text-sm md:text-base text-muted-foreground">Sign in to your Nex Chat account</p>
       </div>
       <form onSubmit={handleSubmit} className="space-y-4 md:space-y-6">
         <div className="space-y-3 md:space-y-4">

@@ -54,7 +54,7 @@ export function UserProfile({ user, onClose }: UserProfileProps) {
                 <span className="sr-only">Edit</span>
               </Button>
             </div>
-            <p className="text-sm text-muted-foreground">{user.about || "Hey there! I'm using InstaTalk."}</p>
+            <p className="text-sm text-muted-foreground">{user.about || "Hey there! I'm using Nex Chat."}</p>
           </div>
 
           <Separator className="my-4" />

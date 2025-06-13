@@ -9,13 +9,13 @@ import { Toaster } from "sonner"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "InstaTalk - Modern Chat Application",
+  title: "Nex Chat - Modern Chat Application",
   description: "A modern chat application with glassmorphism UI",
   generator: 'v0.dev',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'InstaTalk',
+    title: 'Nex Chat',
   },
   formatDetection: {
     telephone: false,

@@ -45,7 +45,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
           <div className="flex h-7 w-7 md:h-8 md:w-8 items-center justify-center rounded-full bg-primary">
             <MessageSquare className="h-3 w-3 md:h-4 md:w-4 text-white" />
           </div>
-          <span className="text-lg md:text-xl font-bold">InstaTalk</span>
+          <span className="text-lg md:text-xl font-bold">Nex Chat</span>
         </Link>
         <div className="flex items-center gap-1 md:gap-2">
           <Button asChild variant="ghost" size="icon" className="h-8 w-8 md:h-10 md:w-10 rounded-full hover:bg-primary/10">

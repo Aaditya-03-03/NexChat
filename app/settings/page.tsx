@@ -279,7 +279,7 @@ export default function SettingsPage() {
               <div className="glass-card p-6">
                 <h3 className="font-semibold mb-4">About</h3>
                 <div className="space-y-2 text-sm text-muted-foreground">
-                  <p>InstaTalk v1.0.0</p>
+                  <p>Nex Chat v1.0.0</p>
                   <p>Modern messaging for everyone</p>
                   <Separator className="my-2" />
                   <p>Built with Next.js & Firebase</p>

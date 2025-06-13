@@ -128,7 +128,7 @@ export function CreateGroupModal({ open, onClose }: CreateGroupModalProps) {
                     </div>
                     <div className="flex-1 text-left">
                       <p className="font-medium">{user.name}</p>
-                      <p className="text-xs text-muted-foreground">{user.about || "Hey there! I'm using InstaTalk."}</p>
+                      <p className="text-xs text-muted-foreground">{user.about || "Hey there! I'm using Nex Chat."}</p>
                     </div>
                   </button>
                 ))}

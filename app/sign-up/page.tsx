@@ -92,7 +92,7 @@ export default function SignUpPage() {
     <AuthLayout>
       <div className="flex flex-col space-y-2 text-center mb-4">
         <h1 className="text-3xl font-bold tracking-tight">Create an account</h1>
-        <p className="text-muted-foreground">Sign up to start using InstaTalk</p>
+        <p className="text-muted-foreground">Sign up to start using Nex Chat</p>
       </div>
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="space-y-4">

@@ -476,7 +476,7 @@ export default function DashboardPage() {
                     <div className="w-16 h-16 mx-auto bg-primary/10 rounded-full flex items-center justify-center">
                       <MessageSquare className="h-8 w-8 text-primary" />
                     </div>
-                    <h2 className="text-2xl font-bold">Welcome to InstaTalk</h2>
+                    <h2 className="text-2xl font-bold">Welcome to Nex Chat</h2>
                     <p className="text-muted-foreground max-w-md">
                       Select a chat from the sidebar or start a new conversation to begin messaging.
                     </p>
