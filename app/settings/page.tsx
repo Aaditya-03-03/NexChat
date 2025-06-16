@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, User, Shield, Bell, Palette, LogOut, Camera, Save } from "lucide-react"
+import { ArrowLeft, User, Shield, Bell, LogOut, Camera, Save } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -18,7 +18,6 @@ export default function SettingsPage() {
   const router = useRouter()
   const { user, userProfile, logout } = useAuthContext()
   const [notifications, setNotifications] = useState(true)
-  const [darkMode, setDarkMode] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [showProfileEditor, setShowProfileEditor] = useState(false)
 
@@ -163,36 +162,6 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              {/* Appearance */}
-              <div className="glass-card p-6">
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="h-10 w-10 rounded-full bg-purple-500/20 flex items-center justify-center">
-                    <Palette className="h-5 w-5 text-purple-500" />
-                  </div>
-                  <h2 className="text-xl font-semibold">Appearance</h2>
-                </div>
-                
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium">Dark Mode</p>
-                      <p className="text-sm text-muted-foreground">Use dark theme</p>
-                    </div>
-                    <Switch
-                      checked={darkMode}
-                      onCheckedChange={setDarkMode}
-                    />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium">Compact Mode</p>
-                      <p className="text-sm text-muted-foreground">Reduce spacing for more content</p>
-                    </div>
-                    <Switch checked={false} />
-                  </div>
-                </div>
-              </div>
-
               {/* Privacy & Security */}
               <div className="glass-card p-6">
                 <div className="flex items-center gap-3 mb-6">
@@ -251,10 +220,6 @@ export default function SettingsPage() {
                   <Button variant="outline" className="w-full justify-start glass-button">
                     <Bell className="h-4 w-4 mr-2" />
                     Notifications
-                  </Button>
-                  <Button variant="outline" className="w-full justify-start glass-button">
-                    <Palette className="h-4 w-4 mr-2" />
-                    Appearance
                   </Button>
                 </div>
               </div>

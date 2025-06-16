@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useRef } from "react"
-import { User, Camera, Save, X, Upload } from "lucide-react"
+import { User, Camera, Save, X, Upload, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -61,7 +61,7 @@ export function ProfileEditor({ user, userProfile, onClose, onUpdate }: ProfileE
 
   const handleImageUpload = async (file: File) => {
     if (!FileService.isImage(file)) {
-      toast.error("Please select a valid image file")
+      toast.error("Please select a valid image file (JPG, PNG, GIF)")
       return
     }
 
@@ -76,7 +76,7 @@ export function ProfileEditor({ user, userProfile, onClose, onUpdate }: ProfileE
       
       if (result.success && result.url) {
         setPhotoURL(result.url)
-        toast.success("Profile picture updated")
+        toast.success("Profile picture updated successfully")
       } else {
         toast.error(result.error || "Failed to upload image")
       }
@@ -92,10 +92,25 @@ export function ProfileEditor({ user, userProfile, onClose, onUpdate }: ProfileE
     if (file) {
       handleImageUpload(file)
     }
+    // Reset the input value so the same file can be selected again
+    e.target.value = ""
   }
 
   const handleRemovePhoto = () => {
     setPhotoURL("")
+    toast.success("Profile picture removed")
+  }
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    const file = e.dataTransfer.files[0]
+    if (file) {
+      handleImageUpload(file)
+    }
   }
 
   return (
@@ -110,14 +125,14 @@ export function ProfileEditor({ user, userProfile, onClose, onUpdate }: ProfileE
         </div>
 
         {/* Content */}
-        <div className="p-4 space-y-4">
-          {/* Profile Picture */}
+        <div className="p-4 space-y-6">
+          {/* Profile Picture Section */}
           <div className="flex flex-col items-center space-y-4">
-            <div className="relative">
-              <Avatar className="h-20 w-20">
+            <div className="relative group">
+              <Avatar className="h-24 w-24 ring-4 ring-background shadow-lg">
                 <AvatarImage src={photoURL} alt={displayName} />
-                <AvatarFallback>
-                  <User className="h-8 w-8" />
+                <AvatarFallback className="bg-gradient-to-br from-primary/20 to-primary/10 text-primary text-2xl font-semibold">
+                  {displayName ? displayName.charAt(0).toUpperCase() : <User className="h-8 w-8" />}
                 </AvatarFallback>
               </Avatar>
               
@@ -126,9 +141,14 @@ export function ProfileEditor({ user, userProfile, onClose, onUpdate }: ProfileE
                   <div className="h-6 w-6 animate-spin rounded-full border-2 border-white border-t-transparent" />
                 </div>
               )}
+              
+              {/* Hover overlay */}
+              <div className="absolute inset-0 bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                <Camera className="h-6 w-6 text-white" />
+              </div>
             </div>
 
-            <div className="flex gap-2">
+            <div className="flex flex-col gap-2 w-full">
               <input
                 ref={fileInputRef}
                 type="file"
@@ -138,15 +158,20 @@ export function ProfileEditor({ user, userProfile, onClose, onUpdate }: ProfileE
                 disabled={isUploading}
               />
               
-              <Button
-                variant="outline"
-                size="sm"
+              <div 
+                className="border-2 border-dashed border-muted-foreground/30 rounded-lg p-4 text-center cursor-pointer hover:border-primary/50 transition-colors"
+                onDragOver={handleDragOver}
+                onDrop={handleDrop}
                 onClick={() => fileInputRef.current?.click()}
-                disabled={isUploading}
               >
-                <Camera className="h-4 w-4 mr-2" />
-                {photoURL ? "Change Photo" : "Add Photo"}
-              </Button>
+                <Upload className="h-6 w-6 mx-auto mb-2 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">
+                  Click to upload or drag and drop
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  PNG, JPG, GIF up to 5MB
+                </p>
+              </div>
               
               {photoURL && (
                 <Button
@@ -154,9 +179,10 @@ export function ProfileEditor({ user, userProfile, onClose, onUpdate }: ProfileE
                   size="sm"
                   onClick={handleRemovePhoto}
                   disabled={isUploading}
+                  className="text-destructive hover:text-destructive"
                 >
-                  <X className="h-4 w-4 mr-2" />
-                  Remove
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Remove Photo
                 </Button>
               )}
             </div>
@@ -165,7 +191,9 @@ export function ProfileEditor({ user, userProfile, onClose, onUpdate }: ProfileE
           {/* Form Fields */}
           <div className="space-y-4">
             <div>
-              <Label htmlFor="displayName">Display Name *</Label>
+              <Label htmlFor="displayName" className="text-sm font-medium">
+                Display Name *
+              </Label>
               <Input
                 id="displayName"
                 value={displayName}
@@ -174,14 +202,19 @@ export function ProfileEditor({ user, userProfile, onClose, onUpdate }: ProfileE
                 className="mt-1"
                 maxLength={50}
               />
+              <p className="text-xs text-muted-foreground mt-1">
+                {displayName.length}/50 characters
+              </p>
             </div>
 
             <div>
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email" className="text-sm font-medium">
+                Email Address
+              </Label>
               <Input
                 id="email"
                 value={userProfile?.email || ""}
-                className="mt-1"
+                className="mt-1 bg-muted/50"
                 disabled
               />
               <p className="text-xs text-muted-foreground mt-1">
@@ -190,13 +223,15 @@ export function ProfileEditor({ user, userProfile, onClose, onUpdate }: ProfileE
             </div>
 
             <div>
-              <Label htmlFor="bio">Bio</Label>
+              <Label htmlFor="bio" className="text-sm font-medium">
+                Bio
+              </Label>
               <Textarea
                 id="bio"
                 value={bio}
                 onChange={(e) => setBio(e.target.value)}
                 placeholder="Tell us about yourself..."
-                className="mt-1"
+                className="mt-1 resize-none"
                 rows={3}
                 maxLength={200}
               />
@@ -214,7 +249,7 @@ export function ProfileEditor({ user, userProfile, onClose, onUpdate }: ProfileE
           </Button>
           <Button 
             onClick={handleSave} 
-            disabled={isLoading || !displayName.trim()}
+            disabled={isLoading || !displayName.trim() || isUploading}
             className="flex-1"
           >
             {isLoading ? (

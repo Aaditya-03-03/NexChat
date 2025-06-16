@@ -25,7 +25,7 @@ export interface Message {
   userDisplayName: string;
   userPhotoURL?: string;
   content: string;
-  type: 'text' | 'image' | 'file';
+  type: 'text' | 'image' | 'file' | 'voice' | 'video' | 'location';
   timestamp: Timestamp;
   readBy: string[];
   edited?: boolean;
@@ -37,6 +37,17 @@ export interface Message {
     messageId: string;
     content: string;
     userDisplayName: string;
+  };
+  // Additional metadata for different file types
+  fileMetadata?: {
+    fileName?: string;
+    fileSize?: number;
+    duration?: number; // for voice/video
+    location?: {
+      latitude: number;
+      longitude: number;
+      address?: string;
+    };
   };
 }
 
@@ -495,6 +506,47 @@ export class ChatService {
         }
       }
       return { success: false, error: 'Chat not found' };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  // Delete chat (remove user from chat or delete entire chat for direct chats)
+  static async deleteChat(chatId: string, userId: string) {
+    try {
+      const chatRef = doc(db, 'chats', chatId);
+      const chatDoc = await getDoc(chatRef);
+      
+      if (!chatDoc.exists()) {
+        return { success: false, error: 'Chat not found' };
+      }
+      
+      const chatData = chatDoc.data() as Chat;
+      
+      // For direct chats, remove the user from participants
+      if (chatData.type === 'direct') {
+        const updatedParticipants = chatData.participants.filter(p => p !== userId);
+        
+        if (updatedParticipants.length === 0) {
+          // If no participants left, delete the entire chat
+          await deleteDoc(chatRef);
+        } else {
+          // Update participants list
+          await updateDoc(chatRef, {
+            participants: updatedParticipants,
+            updatedAt: serverTimestamp(),
+          });
+        }
+      } else {
+        // For group chats, just remove the user from participants
+        await updateDoc(chatRef, {
+          participants: arrayRemove(userId),
+          admins: arrayRemove(userId),
+          updatedAt: serverTimestamp(),
+        });
+      }
+      
+      return { success: true };
     } catch (error: any) {
       return { success: false, error: error.message };
     }

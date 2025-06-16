@@ -103,9 +103,13 @@ export function ChatHeader({
 
     setIsLoading(true)
     try {
-      // This would need to be implemented in ChatService
-      toast.success("Chat deleted")
-      onBackToChatList?.()
+      const result = await ChatService.deleteChat(chat.id, currentUser.uid)
+      if (result.success) {
+        toast.success("Chat deleted successfully")
+        onBackToChatList?.()
+      } else {
+        toast.error(result.error || "Failed to delete chat")
+      }
     } catch (error) {
       toast.error("Failed to delete chat")
     } finally {

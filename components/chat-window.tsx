@@ -3,7 +3,7 @@
 import type React from "react"
 
 import { useState, useRef, useEffect } from "react"
-import { Phone, Video, MoreVertical, Smile, Paperclip, Mic, Send, ImageIcon, File, MapPin, X, LogOut, Search, Edit, Trash2, Reply } from "lucide-react"
+import { Phone, Video, MoreVertical, Smile, Paperclip, Mic, Send, ImageIcon, File, MapPin, X, LogOut, Search, Edit, Trash2, Reply, Play, Pause, Square } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -20,6 +20,7 @@ import { db } from "@/lib/firebase"
 import { useRouter } from "next/navigation"
 import { useAuthContext } from "@/components/auth-provider"
 import { toast } from "sonner"
+import { FileService } from "@/lib/file-service"
 
 interface ChatWindowProps {
   chat: Chat
@@ -43,6 +44,13 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
   const [chatDisplayName, setChatDisplayName] = useState("")
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  
+  // Voice recording states
+  const [isRecording, setIsRecording] = useState(false)
+  const [recordingTime, setRecordingTime] = useState(0)
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   // Fetch chat display name
   useEffect(() => {
@@ -177,6 +185,96 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
 
   const handleFileUploadError = (error: string) => {
     toast.error(error)
+  }
+
+  // Voice recording functions
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const mediaRecorder = new MediaRecorder(stream)
+      const chunks: Blob[] = []
+
+      mediaRecorder.ondataavailable = (event) => {
+        chunks.push(event.data)
+      }
+
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(chunks, { type: 'audio/wav' })
+        setAudioBlob(blob)
+        stream.getTracks().forEach(track => track.stop())
+      }
+
+      mediaRecorder.start()
+      mediaRecorderRef.current = mediaRecorder
+      setIsRecording(true)
+      setRecordingTime(0)
+
+      // Start timer
+      recordingIntervalRef.current = setInterval(() => {
+        setRecordingTime(prev => prev + 1)
+      }, 1000)
+    } catch (error) {
+      toast.error("Failed to start recording. Please check microphone permissions.")
+    }
+  }
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop()
+      setIsRecording(false)
+      if (recordingIntervalRef.current) {
+        clearInterval(recordingIntervalRef.current)
+      }
+    }
+  }
+
+  const sendVoiceNote = async () => {
+    if (!audioBlob) return
+
+    try {
+      const file = new File([audioBlob], `voice-note-${Date.now()}.wav`, { type: 'audio/wav' })
+      const result = await FileService.uploadVoiceNote(file, chat.id)
+      
+      if (result.success && result.url) {
+        onSendMessage('Voice note', 'voice', result.url)
+        setAudioBlob(null)
+        setRecordingTime(0)
+      } else {
+        toast.error("Failed to upload voice note")
+      }
+    } catch (error) {
+      toast.error("Failed to send voice note")
+    }
+  }
+
+  const shareLocation = () => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          const { latitude, longitude } = position.coords
+          const locationData = {
+            latitude,
+            longitude,
+            address: `Location at ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`
+          }
+          
+          // Create location message
+          const locationMessage = `📍 Location shared\nLatitude: ${latitude.toFixed(6)}\nLongitude: ${longitude.toFixed(6)}`
+          onSendMessage(locationMessage, 'location', JSON.stringify(locationData))
+        },
+        (error) => {
+          toast.error("Failed to get location. Please check location permissions.")
+        }
+      )
+    } else {
+      toast.error("Geolocation is not supported by this browser.")
+    }
+  }
+
+  const formatRecordingTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60)
+    const secs = seconds % 60
+    return `${mins}:${secs.toString().padStart(2, '0')}`
   }
 
   const handleMessageSelect = (message: Message) => {
@@ -362,6 +460,56 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
                             className="max-w-full rounded-lg cursor-pointer"
                             onClick={() => window.open(message.content, '_blank')}
                           />
+                        ) : message.type === 'voice' ? (
+                          <div className="flex items-center gap-3 p-3 bg-background/20 rounded-lg">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 rounded-full"
+                              onClick={() => {
+                                const audio = new Audio(message.content)
+                                audio.play()
+                              }}
+                            >
+                              <Play className="h-4 w-4" />
+                            </Button>
+                            <div className="flex-1">
+                              <div className="w-full bg-muted/30 rounded-full h-2">
+                                <div className="bg-primary h-2 rounded-full" style={{ width: '0%' }}></div>
+                              </div>
+                              <p className="text-xs text-muted-foreground mt-1">Voice message</p>
+                            </div>
+                          </div>
+                        ) : message.type === 'video' ? (
+                          <video 
+                            src={message.content} 
+                            controls
+                            className="max-w-full rounded-lg"
+                            preload="metadata"
+                          />
+                        ) : message.type === 'location' ? (
+                          <div className="p-3 bg-background/20 rounded-lg">
+                            <div className="flex items-center gap-2 mb-2">
+                              <MapPin className="h-4 w-4 text-primary" />
+                              <span className="font-medium">Location</span>
+                            </div>
+                            <p className="text-sm text-muted-foreground mb-2">{message.content}</p>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                try {
+                                  const locationData = JSON.parse(message.content)
+                                  const url = `https://www.google.com/maps?q=${locationData.latitude},${locationData.longitude}`
+                                  window.open(url, '_blank')
+                                } catch (e) {
+                                  toast.error("Invalid location data")
+                                }
+                              }}
+                            >
+                              Open in Maps
+                            </Button>
+                          </div>
                         ) : message.type === 'file' ? (
                           <div className="flex items-center gap-2 p-2 bg-background/20 rounded-lg">
                             <File className="h-4 w-4" />
@@ -472,6 +620,23 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
       {/* File upload */}
       {selectedFile && (
         <div className="p-2 border-t border-border/40 bg-muted/20">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <File className="h-4 w-4 text-primary" />
+              <span className="text-sm font-medium">{selectedFile.name}</span>
+              <span className="text-xs text-muted-foreground">
+                ({FileService.formatFileSize(selectedFile.size)})
+              </span>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setSelectedFile(null)}
+              className="h-6 w-6 p-0 text-destructive hover:text-destructive"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
           <FileUpload
             chatId={chat.id}
             onFileSelect={handleFileUpload}
@@ -517,7 +682,7 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
               onClick={() => {
                 const input = document.createElement('input')
                 input.type = 'file'
-                input.accept = '.pdf,.doc,.docx,.txt,.zip'
+                input.accept = '.pdf,.doc,.docx,.txt,.zip,audio/*,video/*'
                 input.onchange = (e) => {
                   const file = (e.target as HTMLInputElement).files?.[0]
                   if (file) handleFileUpload(file)
@@ -528,14 +693,84 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
               <File className="h-6 w-6" />
               <span className="text-xs">Document</span>
             </button>
-            <button className="flex flex-col items-center gap-1 p-2 rounded-lg hover:bg-muted/50 transition-colors">
+            <button 
+              className="flex flex-col items-center gap-1 p-2 rounded-lg hover:bg-muted/50 transition-colors"
+              onClick={() => {
+                setShowAttachMenu(false)
+                shareLocation()
+              }}
+            >
               <MapPin className="h-6 w-6" />
               <span className="text-xs">Location</span>
             </button>
-            <button className="flex flex-col items-center gap-1 p-2 rounded-lg hover:bg-muted/50 transition-colors">
-              <Mic className="h-6 w-6" />
-              <span className="text-xs">Voice</span>
+            <button 
+              className="flex flex-col items-center gap-1 p-2 rounded-lg hover:bg-muted/50 transition-colors"
+              onClick={() => {
+                setShowAttachMenu(false)
+                if (isRecording) {
+                  stopRecording()
+                } else {
+                  startRecording()
+                }
+              }}
+            >
+              {isRecording ? <Square className="h-6 w-6 text-red-500" /> : <Mic className="h-6 w-6" />}
+              <span className="text-xs">{isRecording ? 'Stop' : 'Voice'}</span>
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Voice recording indicator */}
+      {isRecording && (
+        <div className="p-2 border-t border-border/40 bg-red-500/10">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="h-3 w-3 bg-red-500 rounded-full animate-pulse"></div>
+              <span className="text-sm text-red-600">Recording... {formatRecordingTime(recordingTime)}</span>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={stopRecording}
+                className="h-8 px-3"
+              >
+                <Square className="h-4 w-4 mr-1" />
+                Stop
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Voice note preview */}
+      {audioBlob && !isRecording && (
+        <div className="p-2 border-t border-border/40 bg-muted/20">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Mic className="h-4 w-4 text-primary" />
+              <span className="text-sm">Voice note ready ({formatRecordingTime(recordingTime)})</span>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setAudioBlob(null)}
+                className="h-8 px-3"
+              >
+                <X className="h-4 w-4 mr-1" />
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={sendVoiceNote}
+                className="h-8 px-3"
+              >
+                <Send className="h-4 w-4 mr-1" />
+                Send
+              </Button>
+            </div>
           </div>
         </div>
       )}

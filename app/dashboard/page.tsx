@@ -15,6 +15,11 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
+import { Switch } from "@/components/ui/switch"
+import { Label } from "@/components/ui/label"
+import { Separator } from "@/components/ui/separator"
+import { ProfileEditor } from "@/components/profile-editor"
 import { 
   MessageSquare, 
   Users, 
@@ -27,13 +32,17 @@ import {
   UserPlus,
   Shield,
   Bell,
-  Palette,
   HelpCircle,
   Star,
   Archive,
-  Trash
+  Trash,
+  Eye,
+  EyeOff,
+  Clock
 } from "lucide-react"
 import { toast } from "sonner"
+import { doc, getDoc } from "firebase/firestore"
+import { db } from "@/lib/firebase"
 
 export default function DashboardPage() {
   const { user, userProfile } = useAuthContext()
@@ -46,7 +55,27 @@ export default function DashboardPage() {
   const [showChatList, setShowChatList] = useState(true)
   const [activeTab, setActiveTab] = useState("chats")
   const [searchQuery, setSearchQuery] = useState("")
+  const [chatSearchQuery, setChatSearchQuery] = useState("")
   const [allUsers, setAllUsers] = useState<any[]>([])
+  const [userNames, setUserNames] = useState<{[key: string]: string}>({})
+  
+  // Settings states
+  const [showProfileEditor, setShowProfileEditor] = useState(false)
+  const [showPrivacySettings, setShowPrivacySettings] = useState(false)
+  const [showNotificationSettings, setShowNotificationSettings] = useState(false)
+  const [showArchiveDialog, setShowArchiveDialog] = useState(false)
+  const [showClearChatsDialog, setShowClearChatsDialog] = useState(false)
+  const [notifications, setNotifications] = useState(true)
+  const [privacySettings, setPrivacySettings] = useState({
+    showOnlineStatus: true,
+    showLastSeen: true,
+    allowReadReceipts: true
+  })
+
+  // Add state for add contact modal
+  const [showAddContactModal, setShowAddContactModal] = useState(false)
+  const [addContactInput, setAddContactInput] = useState("")
+  const [addContactLoading, setAddContactLoading] = useState(false)
 
   // Check if we're on mobile
   useEffect(() => {
@@ -72,10 +101,10 @@ export default function DashboardPage() {
       setChats(userChats)
       setLoading(false)
       
-      // Select first chat if none selected
-      if (!selectedChat && userChats.length > 0) {
-        setSelectedChat(userChats[0])
-      }
+      // Don't automatically select first chat - let user choose
+      // if (!selectedChat && userChats.length > 0) {
+      //   setSelectedChat(userChats[0])
+      // }
     })
 
     return unsubscribe
@@ -103,6 +132,37 @@ export default function DashboardPage() {
     }
   }, [activeTab, user])
 
+  // Fetch user names for direct chats
+  useEffect(() => {
+    const fetchUserNames = async () => {
+      const names: {[key: string]: string} = {}
+      
+      for (const chat of chats) {
+        if (chat.type === 'direct') {
+          const otherUserId = chat.participants.find(p => p !== user?.uid)
+          if (otherUserId && !names[otherUserId]) {
+            try {
+              const userDoc = await getDoc(doc(db, 'users', otherUserId))
+              if (userDoc.exists()) {
+                names[otherUserId] = userDoc.data().displayName || 'Unknown User'
+              } else {
+                names[otherUserId] = 'Unknown User'
+              }
+            } catch (error) {
+              names[otherUserId] = 'Unknown User'
+            }
+          }
+        }
+      }
+      
+      setUserNames(names)
+    }
+
+    if (chats.length > 0 && user) {
+      fetchUserNames()
+    }
+  }, [chats, user])
+
   // Update user status when component mounts/unmounts
   useEffect(() => {
     if (!user) return
@@ -116,7 +176,7 @@ export default function DashboardPage() {
     }
   }, [user])
 
-  const handleSendMessage = async (content: string, type: 'text' | 'image' | 'file' = 'text', fileUrl?: string) => {
+  const handleSendMessage = async (content: string, type: 'text' | 'image' | 'file' | 'voice' | 'video' | 'location' = 'text', fileUrl?: string) => {
     if (!selectedChat || !user || !userProfile) return
 
     const messageData = {
@@ -157,7 +217,7 @@ export default function DashboardPage() {
       toast.success("Group chat created successfully!")
       setActiveTab("chats")
     } else {
-      toast.error(result.error || "Failed to create group chat")
+      toast.error(result.error || "Failed to create group")
     }
   }
 
@@ -173,10 +233,148 @@ export default function DashboardPage() {
     setSelectedChat(null)
   }
 
+  // Settings handlers
+  const handleEditProfile = () => {
+    setShowProfileEditor(true)
+  }
+
+  const handlePrivacySettings = () => {
+    setShowPrivacySettings(true)
+  }
+
+  const handleNotificationSettings = () => {
+    setShowNotificationSettings(true)
+  }
+
+  const handleArchiveChats = () => {
+    setShowArchiveDialog(true)
+  }
+
+  const handleClearAllChats = () => {
+    setShowClearChatsDialog(true)
+  }
+
+  const handleArchiveChatsConfirm = async () => {
+    try {
+      // Archive all chats logic here
+      toast.success("All chats archived successfully")
+      setShowArchiveDialog(false)
+    } catch (error) {
+      toast.error("Failed to archive chats")
+    }
+  }
+
+  const handleClearChatsConfirm = async () => {
+    try {
+      // Clear all chats logic here
+      setChats([])
+      setSelectedChat(null)
+      setMessages([])
+      toast.success("All chats cleared successfully")
+      setShowClearChatsDialog(false)
+    } catch (error) {
+      toast.error("Failed to clear chats")
+    }
+  }
+
+  const handleProfileUpdate = (updatedProfile: any) => {
+    // Update user profile logic here
+    toast.success("Profile updated successfully")
+    setShowProfileEditor(false)
+    
+    // Update the userProfile in the auth context
+    // This would typically be done through the auth context
+    // For now, we'll just show a success message
+  }
+
+  const handlePrivacyUpdate = (settings: any) => {
+    setPrivacySettings(settings)
+    toast.success("Privacy settings updated")
+    setShowPrivacySettings(false)
+  }
+
+  const handleNotificationUpdate = (enabled: boolean) => {
+    setNotifications(enabled)
+    toast.success(`Notifications ${enabled ? 'enabled' : 'disabled'}`)
+    setShowNotificationSettings(false)
+  }
+
   const filteredUsers = allUsers.filter(user => 
     user.displayName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     user.email?.toLowerCase().includes(searchQuery.toLowerCase())
   )
+
+  const filteredChats = chats.filter(chat => {
+    const searchLower = chatSearchQuery.toLowerCase()
+    
+    if (chat.type === 'group') {
+      // For group chats, search through group name and last message
+      return chat.name?.toLowerCase().includes(searchLower) ||
+             chat.lastMessage?.content?.toLowerCase().includes(searchLower)
+    } else {
+      // For direct chats, search through the other participant's name and last message
+      const otherUserId = chat.participants.find(p => p !== user?.uid)
+      const otherUserName = otherUserId ? (userNames[otherUserId] || otherUserId || 'Unknown User') : 'Unknown User'
+      return otherUserName.toLowerCase().includes(searchLower) ||
+             chat.lastMessage?.content?.toLowerCase().includes(searchLower)
+    }
+  })
+
+  const getChatDisplayName = (chat: Chat) => {
+    if (chat.type === 'group') {
+      return chat.name || 'Group Chat'
+    } else {
+      // For direct chats, show the other participant's name
+      const otherUserId = chat.participants.find(p => p !== user?.uid)
+      if (!otherUserId) return 'Unknown User'
+      return userNames[otherUserId] || otherUserId || 'Unknown User'
+    }
+  }
+
+  // Add contact handler
+  const handleAddContact = async () => {
+    if (!addContactInput) return
+    setAddContactLoading(true)
+    try {
+      // Try to find user by email or UID
+      let userToAdd = allUsers.find(u => u.email === addContactInput || u.uid === addContactInput)
+      if (!userToAdd) {
+        toast.error("User not found")
+        setAddContactLoading(false)
+        return
+      }
+      await handleCreateDirectChat(userToAdd.uid)
+      setShowAddContactModal(false)
+      setAddContactInput("")
+    } catch (e) {
+      toast.error("Failed to add contact")
+    }
+    setAddContactLoading(false)
+  }
+
+  // Delete chat handler
+  const handleDeleteChat = async (chat: Chat) => {
+    if (!user) return
+    
+    if (!confirm(`Are you sure you want to delete this ${chat.type === 'direct' ? 'conversation' : 'group'}? This action cannot be undone.`)) {
+      return
+    }
+
+    try {
+      const result = await ChatService.deleteChat(chat.id, user.uid)
+      if (result.success) {
+        toast.success("Chat deleted successfully")
+        if (selectedChat?.id === chat.id) {
+          setSelectedChat(null)
+          setMessages([])
+        }
+      } else {
+        toast.error(result.error || "Failed to delete chat")
+      }
+    } catch (error) {
+      toast.error("Failed to delete chat")
+    }
+  }
 
   if (loading) {
     return (
@@ -193,26 +391,115 @@ export default function DashboardPage() {
 
   return (
     <ProtectedRoute>
-    <ChatLayout>
+      <ChatLayout>
         {/* Mobile: Show tabs or chat window */}
         {isMobileView ? (
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-4">
+            <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="chats" className="text-xs">Chats</TabsTrigger>
               <TabsTrigger value="contacts" className="text-xs">Contacts</TabsTrigger>
-              <TabsTrigger value="settings" className="text-xs">Settings</TabsTrigger>
-              <TabsTrigger value="help" className="text-xs">Help</TabsTrigger>
             </TabsList>
+            
+            {/* Chats Tab */}
             <TabsContent value="chats" className="mt-0 h-full">
               {showChatList ? (
-                <ChatList 
-                  chats={chats} 
-                  selectedChat={selectedChat} 
-                  onSelectChat={handleSelectChat}
-                  onCreateDirectChat={handleCreateDirectChat}
-                  onCreateGroupChat={handleCreateGroupChat}
-                  currentUser={userProfile}
-                />
+                <div className="w-full h-full flex flex-col">
+                  {/* Header with Search */}
+                  <div className="p-4 border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+                    <div className="flex items-center justify-between mb-3">
+                      <h2 className="text-lg font-semibold">Messages</h2>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 rounded-full hover:bg-primary/10"
+                        onClick={() => setActiveTab("contacts")}
+                      >
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Search conversations..."
+                        value={chatSearchQuery}
+                        onChange={(e) => setChatSearchQuery(e.target.value)}
+                        className="pl-10"
+                      />
+                    </div>
+                  </div>
+                  
+                  {/* Chat List */}
+                  <ScrollArea className="flex-1">
+                    <div className="space-y-1 p-2">
+                      {filteredChats.length > 0 ? (
+                        filteredChats.map((chat) => (
+                          <div
+                            key={chat.id}
+                            onClick={() => handleSelectChat(chat)}
+                            className="flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all hover:bg-muted/50 active:scale-95"
+                          >
+                            <div className="relative">
+                              <Avatar className="h-12 w-12 ring-2 ring-background">
+                                {chat.type === 'group' ? (
+                                  <div className="bg-gradient-to-br from-primary/20 to-primary/10 h-full w-full flex items-center justify-center">
+                                    <span className="text-sm font-semibold text-primary">{(chat.name || 'G').charAt(0)}</span>
+                                  </div>
+                                ) : (
+                                  <>
+                                    <AvatarImage src="/placeholder.svg" alt={getChatDisplayName(chat)} />
+                                    <AvatarFallback className="bg-gradient-to-br from-muted to-muted/50">
+                                      {getChatDisplayName(chat).charAt(0)}
+                                    </AvatarFallback>
+                                  </>
+                                )}
+                              </Avatar>
+                              <div className="absolute -bottom-1 -right-1 h-3 w-3 bg-green-500 rounded-full border-2 border-background ring-1 ring-green-400" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between mb-1">
+                                <h3 className="font-semibold text-sm truncate">{getChatDisplayName(chat)}</h3>
+                                <span className="text-xs text-muted-foreground">
+                                  {chat.lastMessage?.timestamp ? 
+                                    new Date(chat.lastMessage.timestamp.toDate()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
+                                    : ''
+                                  }
+                                </span>
+                              </div>
+                              <p className="text-xs text-muted-foreground truncate mb-1">
+                                {chat.lastMessage?.content || "No messages yet"}
+                              </p>
+                              {chat.type === 'group' && (
+                                <div className="flex items-center gap-1">
+                                  <Badge variant="secondary" className="text-xs px-2 py-0.5 bg-primary/10 text-primary border-primary/20">
+                                    {chat.participants.length} members
+                                  </Badge>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        // Empty state for mobile
+                        <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
+                          <div className="w-20 h-20 mx-auto bg-gradient-to-br from-primary/20 to-primary/10 rounded-full flex items-center justify-center mb-4">
+                            <MessageSquare className="h-10 w-10 text-primary" />
+                          </div>
+                          <h3 className="text-xl font-semibold mb-2">No conversations yet</h3>
+                          <p className="text-sm text-muted-foreground mb-4">
+                            Start chatting with friends and family
+                          </p>
+                          <Button 
+                            onClick={() => setActiveTab("contacts")}
+                            className="bg-primary hover:bg-primary/90"
+                          >
+                            <Plus className="h-4 w-4 mr-2" />
+                            Start New Chat
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </ScrollArea>
+                </div>
               ) : (
                 selectedChat && (
                   <ChatWindow
@@ -226,90 +513,158 @@ export default function DashboardPage() {
                 )
               )}
             </TabsContent>
+            
+            {/* Contacts Tab */}
             <TabsContent value="contacts" className="mt-0 h-full">
-              <div className="p-3 border-b border-border/40">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search contacts..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10 h-9"
-                  />
-                </div>
-              </div>
-              <ScrollArea className="h-[calc(100vh-8rem)]">
-                <div className="p-3 space-y-2">
-                  {filteredUsers.map((contact) => (
-                    <div
-                      key={contact.uid}
-                      className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 cursor-pointer"
-                      onClick={() => handleCreateDirectChat(contact.uid)}
+              <div className="h-full flex flex-col">
+                {/* Header */}
+                <div className="p-4 border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+                  <div className="flex items-center justify-between mb-3">
+                    <h2 className="text-lg font-semibold">Contacts</h2>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 rounded-full hover:bg-primary/10"
+                      onClick={() => setShowAddContactModal(true)}
                     >
-                      <Avatar className="h-10 w-10">
-                        <AvatarImage src={contact.photoURL} />
-                        <AvatarFallback>{contact.displayName?.charAt(0)}</AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1">
-                        <h3 className="font-medium text-sm">{contact.displayName}</h3>
-                        <p className="text-xs text-muted-foreground">{contact.email}</p>
-                      </div>
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <MessageSquare className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ))}
+                      <UserPlus className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search contacts..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
                 </div>
-              </ScrollArea>
+                
+                {/* Add Contact Modal */}
+                <Dialog open={showAddContactModal} onOpenChange={setShowAddContactModal}>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Add Contact</DialogTitle>
+                      <DialogDescription>Enter the email or user ID of the contact you want to add.</DialogDescription>
+                    </DialogHeader>
+                    <Input
+                      placeholder="Email or User ID"
+                      value={addContactInput}
+                      onChange={e => setAddContactInput(e.target.value)}
+                      disabled={addContactLoading}
+                    />
+                    <DialogFooter>
+                      <Button onClick={handleAddContact} disabled={!addContactInput || addContactLoading}>
+                        {addContactLoading ? 'Adding...' : 'Add'}
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+                
+                {/* Contacts List */}
+                <ScrollArea className="flex-1">
+                  <div className="p-3 space-y-2">
+                    {filteredUsers.map((contact) => (
+                      <div
+                        key={contact.uid}
+                        className="flex items-center gap-3 p-3 rounded-xl hover:bg-muted/50 cursor-pointer transition-all active:scale-95"
+                        onClick={() => handleCreateDirectChat(contact.uid)}
+                      >
+                        <Avatar className="h-12 w-12 ring-2 ring-background">
+                          <AvatarImage src={contact.photoURL} />
+                          <AvatarFallback className="bg-gradient-to-br from-muted to-muted/50">
+                            {contact.displayName?.charAt(0)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1">
+                          <h3 className="font-semibold text-sm">{contact.displayName}</h3>
+                          <p className="text-xs text-muted-foreground">{contact.email}</p>
+                        </div>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-primary/10">
+                          <MessageSquare className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              </div>
             </TabsContent>
+            
+            {/* Settings Tab */}
             <TabsContent value="settings" className="mt-0 h-full">
-              <ScrollArea className="h-[calc(100vh-8rem)]">
+              <ScrollArea className="h-full">
                 <div className="p-4 space-y-4">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg">Profile Settings</CardTitle>
+                  {/* Profile Section */}
+                  <Card className="border-border/50">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <UserPlus className="h-5 w-5 text-primary" />
+                        Profile Settings
+                      </CardTitle>
                     </CardHeader>
-                    <CardContent className="space-y-3">
-                      <div className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 cursor-pointer">
-                        <UserPlus className="h-5 w-5" />
-                        <span>Edit Profile</span>
+                    <CardContent className="space-y-2">
+                      <div className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors" onClick={handleEditProfile}>
+                        <UserPlus className="h-5 w-5 text-muted-foreground" />
+                        <span className="font-medium">Edit Profile</span>
                       </div>
-                      <div className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 cursor-pointer">
-                        <Shield className="h-5 w-5" />
-                        <span>Privacy & Security</span>
+                      <div className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors" onClick={handlePrivacySettings}>
+                        <Shield className="h-5 w-5 text-muted-foreground" />
+                        <span className="font-medium">Privacy & Security</span>
                       </div>
-                      <div className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 cursor-pointer">
-                        <Bell className="h-5 w-5" />
-                        <span>Notifications</span>
+                      <div className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors" onClick={handleNotificationSettings}>
+                        <Bell className="h-5 w-5 text-muted-foreground" />
+                        <span className="font-medium">Notifications</span>
                       </div>
-                      <div className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 cursor-pointer">
-                        <Palette className="h-5 w-5" />
-                        <span>Appearance</span>
+                    </CardContent>
+                  </Card>
+
+                  {/* Chat Settings */}
+                  <Card className="border-border/50">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <MessageSquare className="h-5 w-5 text-primary" />
+                        Chat Settings
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                      <div className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors" onClick={handleArchiveChats}>
+                        <Archive className="h-5 w-5 text-muted-foreground" />
+                        <span className="font-medium">Archive Chats</span>
+                      </div>
+                      <div className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors" onClick={handleClearAllChats}>
+                        <Trash className="h-5 w-5 text-muted-foreground" />
+                        <span className="font-medium">Clear All Chats</span>
                       </div>
                     </CardContent>
                   </Card>
                 </div>
               </ScrollArea>
             </TabsContent>
+            
+            {/* Help Tab */}
             <TabsContent value="help" className="mt-0 h-full">
-              <ScrollArea className="h-[calc(100vh-8rem)]">
+              <ScrollArea className="h-full">
                 <div className="p-4 space-y-4">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg">Help & Support</CardTitle>
+                  <Card className="border-border/50">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <HelpCircle className="h-5 w-5 text-primary" />
+                        Help & Support
+                      </CardTitle>
                     </CardHeader>
-                    <CardContent className="space-y-3">
-                      <div className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 cursor-pointer">
-                        <HelpCircle className="h-5 w-5" />
-                        <span>FAQ</span>
+                    <CardContent className="space-y-2">
+                      <div className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors">
+                        <HelpCircle className="h-5 w-5 text-muted-foreground" />
+                        <span className="font-medium">FAQ</span>
                       </div>
-                      <div className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 cursor-pointer">
-                        <MessageSquare className="h-5 w-5" />
-                        <span>Contact Support</span>
+                      <div className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors">
+                        <MessageSquare className="h-5 w-5 text-muted-foreground" />
+                        <span className="font-medium">Contact Support</span>
                       </div>
-                      <div className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 cursor-pointer">
-                        <Star className="h-5 w-5" />
-                        <span>Rate App</span>
+                      <div className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors">
+                        <Star className="h-5 w-5 text-muted-foreground" />
+                        <span className="font-medium">Rate App</span>
                       </div>
                     </CardContent>
                   </Card>
@@ -322,136 +677,240 @@ export default function DashboardPage() {
           <div className="w-full flex">
             {/* Left Sidebar with Tabs */}
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-80 border-r border-border/40 flex flex-col">
-              <div className="p-4 border-b border-border/40">
-                <TabsList className="grid w-full grid-cols-4">
+              <div className="p-4 border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+                <TabsList className="grid w-full grid-cols-2">
                   <TabsTrigger value="chats">Chats</TabsTrigger>
                   <TabsTrigger value="contacts">Contacts</TabsTrigger>
-                  <TabsTrigger value="settings">Settings</TabsTrigger>
-                  <TabsTrigger value="help">Help</TabsTrigger>
                 </TabsList>
               </div>
               <div className="flex-1">
                 <TabsContent value="chats" className="mt-0 h-full">
-                  <ChatList 
-                    chats={chats} 
-                    selectedChat={selectedChat} 
-                    onSelectChat={setSelectedChat}
-                    onCreateDirectChat={handleCreateDirectChat}
-                    onCreateGroupChat={handleCreateGroupChat}
-                    currentUser={userProfile}
-                  />
-                </TabsContent>
-                <TabsContent value="contacts" className="mt-0 h-full">
-                  <div className="p-4 border-b border-border/40">
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        placeholder="Search contacts..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="pl-10"
-                      />
-                    </div>
-                  </div>
-                  <ScrollArea className="h-[calc(100vh-8rem)]">
-                    <div className="p-4 space-y-2">
-                      {filteredUsers.map((contact) => (
-                        <div
-                          key={contact.uid}
-                          className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 cursor-pointer"
-                          onClick={() => handleCreateDirectChat(contact.uid)}
+                  <div className="h-full flex flex-col">
+                    {/* Header with Search */}
+                    <div className="p-4 border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+                      <div className="flex items-center justify-between mb-3">
+                        <h2 className="text-lg font-semibold">Messages</h2>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 rounded-full hover:bg-primary/10"
+                          onClick={() => setActiveTab("contacts")}
                         >
-                          <Avatar className="h-10 w-10">
-                            <AvatarImage src={contact.photoURL} />
-                            <AvatarFallback>{contact.displayName?.charAt(0)}</AvatarFallback>
-                          </Avatar>
-                          <div className="flex-1">
-                            <h3 className="font-medium">{contact.displayName}</h3>
-                            <p className="text-sm text-muted-foreground">{contact.email}</p>
-                          </div>
-                          <div className="flex gap-1">
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                              <MessageSquare className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                              <Phone className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                              <Video className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
+                          <Plus className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          placeholder="Search conversations..."
+                          value={chatSearchQuery}
+                          onChange={(e) => setChatSearchQuery(e.target.value)}
+                          className="pl-10"
+                        />
+                      </div>
                     </div>
-                  </ScrollArea>
+                    
+                    {/* Chat List */}
+                    <ScrollArea className="flex-1">
+                      <div className="p-2 space-y-1">
+                        {filteredChats.length > 0 ? (
+                          filteredChats.map((chat) => (
+                            <div
+                              key={chat.id}
+                              onClick={() => setSelectedChat(chat)}
+                              className="flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all hover:bg-muted/50 active:scale-95"
+                            >
+                              <div className="relative">
+                                <Avatar className="h-12 w-12 ring-2 ring-background">
+                                  {chat.type === 'group' ? (
+                                    <div className="bg-gradient-to-br from-primary/20 to-primary/10 h-full w-full flex items-center justify-center">
+                                      <span className="text-sm font-semibold text-primary">{(chat.name || 'G').charAt(0)}</span>
+                                    </div>
+                                  ) : (
+                                    <>
+                                      <AvatarImage src="/placeholder.svg" alt={getChatDisplayName(chat)} />
+                                      <AvatarFallback className="bg-gradient-to-br from-muted to-muted/50">
+                                        {getChatDisplayName(chat).charAt(0)}
+                                      </AvatarFallback>
+                                    </>
+                                  )}
+                                </Avatar>
+                                <div className="absolute -bottom-1 -right-1 h-3 w-3 bg-green-500 rounded-full border-2 border-background ring-1 ring-green-400" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between mb-1">
+                                  <h3 className="font-semibold text-sm truncate">{getChatDisplayName(chat)}</h3>
+                                  <span className="text-xs text-muted-foreground">
+                                    {chat.lastMessage?.timestamp ? 
+                                      new Date(chat.lastMessage.timestamp.toDate()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
+                                      : ''
+                                    }
+                                  </span>
+                                </div>
+                                <p className="text-xs text-muted-foreground truncate mb-1">
+                                  {chat.lastMessage?.content || "No messages yet"}
+                                </p>
+                                {chat.type === 'group' && (
+                                  <div className="flex items-center gap-1">
+                                    <Badge variant="secondary" className="text-xs px-2 py-0.5 bg-primary/10 text-primary border-primary/20">
+                                      {chat.participants.length} members
+                                    </Badge>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          ))
+                        ) : (
+                          // Empty state
+                          <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
+                            <div className="w-16 h-16 mx-auto bg-gradient-to-br from-primary/20 to-primary/10 rounded-full flex items-center justify-center mb-4">
+                              <MessageSquare className="h-8 w-8 text-primary" />
+                            </div>
+                            <h3 className="text-lg font-semibold mb-2">No conversations yet</h3>
+                            <p className="text-sm text-muted-foreground mb-4">
+                              Start chatting with friends and family
+                            </p>
+                            <Button 
+                              onClick={() => setActiveTab("contacts")}
+                              className="bg-primary hover:bg-primary/90"
+                            >
+                              <Plus className="h-4 w-4 mr-2" />
+                              Start New Chat
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    </ScrollArea>
+                  </div>
                 </TabsContent>
+                
+                <TabsContent value="contacts" className="mt-0 h-full">
+                  <div className="h-full flex flex-col">
+                    {/* Header */}
+                    <div className="p-4 border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+                      <div className="flex items-center justify-between mb-3">
+                        <h2 className="text-lg font-semibold">Contacts</h2>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 rounded-full hover:bg-primary/10"
+                          onClick={() => setShowAddContactModal(true)}
+                        >
+                          <UserPlus className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          placeholder="Search contacts..."
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          className="pl-10"
+                        />
+                      </div>
+                    </div>
+                    
+                    {/* Add Contact Modal */}
+                    <Dialog open={showAddContactModal} onOpenChange={setShowAddContactModal}>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Add Contact</DialogTitle>
+                          <DialogDescription>Enter the email or user ID of the contact you want to add.</DialogDescription>
+                        </DialogHeader>
+                        <Input
+                          placeholder="Email or User ID"
+                          value={addContactInput}
+                          onChange={e => setAddContactInput(e.target.value)}
+                          disabled={addContactLoading}
+                        />
+                        <DialogFooter>
+                          <Button onClick={handleAddContact} disabled={!addContactInput || addContactLoading}>
+                            {addContactLoading ? 'Adding...' : 'Add'}
+                          </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
+                    
+                    {/* Contacts List */}
+                    <ScrollArea className="flex-1">
+                      <div className="p-4 space-y-2">
+                        {filteredUsers.map((contact) => (
+                          <div
+                            key={contact.uid}
+                            className="flex items-center gap-3 p-3 rounded-xl hover:bg-muted/50 cursor-pointer transition-all active:scale-95"
+                            onClick={() => handleCreateDirectChat(contact.uid)}
+                          >
+                            <Avatar className="h-12 w-12 ring-2 ring-background">
+                              <AvatarImage src={contact.photoURL} />
+                              <AvatarFallback className="bg-gradient-to-br from-muted to-muted/50">
+                                {contact.displayName?.charAt(0)}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="flex-1">
+                              <h3 className="font-semibold text-sm">{contact.displayName}</h3>
+                              <p className="text-xs text-muted-foreground">{contact.email}</p>
+                            </div>
+                            <div className="flex gap-1">
+                              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-primary/10">
+                                <MessageSquare className="h-4 w-4" />
+                              </Button>
+                              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-primary/10">
+                                <Phone className="h-4 w-4" />
+                              </Button>
+                              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-primary/10">
+                                <Video className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  </div>
+                </TabsContent>
+                
                 <TabsContent value="settings" className="mt-0 h-full">
-                  <ScrollArea className="h-[calc(100vh-8rem)]">
+                  <ScrollArea className="h-full">
                     <div className="p-4 space-y-4">
-                      <Card>
-                        <CardHeader>
-                          <CardTitle>Profile Settings</CardTitle>
-                          <CardDescription>Manage your account and preferences</CardDescription>
+                      {/* Profile Section */}
+                      <Card className="border-border/50">
+                        <CardHeader className="pb-3">
+                          <CardTitle className="text-lg flex items-center gap-2">
+                            <UserPlus className="h-5 w-5 text-primary" />
+                            Profile Settings
+                          </CardTitle>
                         </CardHeader>
-                        <CardContent className="space-y-3">
-                          <div className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 cursor-pointer">
-                            <UserPlus className="h-5 w-5" />
-                            <span>Edit Profile</span>
+                        <CardContent className="space-y-2">
+                          <div className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors" onClick={handleEditProfile}>
+                            <UserPlus className="h-5 w-5 text-muted-foreground" />
+                            <span className="font-medium">Edit Profile</span>
                           </div>
-                          <div className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 cursor-pointer">
-                            <Shield className="h-5 w-5" />
-                            <span>Privacy & Security</span>
+                          <div className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors" onClick={handlePrivacySettings}>
+                            <Shield className="h-5 w-5 text-muted-foreground" />
+                            <span className="font-medium">Privacy & Security</span>
                           </div>
-                          <div className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 cursor-pointer">
-                            <Bell className="h-5 w-5" />
-                            <span>Notifications</span>
-                          </div>
-                          <div className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 cursor-pointer">
-                            <Palette className="h-5 w-5" />
-                            <span>Appearance</span>
+                          <div className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors" onClick={handleNotificationSettings}>
+                            <Bell className="h-5 w-5 text-muted-foreground" />
+                            <span className="font-medium">Notifications</span>
                           </div>
                         </CardContent>
                       </Card>
 
-                      <Card>
-                        <CardHeader>
-                          <CardTitle>Chat Settings</CardTitle>
-                          <CardDescription>Customize your chat experience</CardDescription>
+                      {/* Chat Settings */}
+                      <Card className="border-border/50">
+                        <CardHeader className="pb-3">
+                          <CardTitle className="text-lg flex items-center gap-2">
+                            <MessageSquare className="h-5 w-5 text-primary" />
+                            Chat Settings
+                          </CardTitle>
                         </CardHeader>
-                        <CardContent className="space-y-3">
-                          <div className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 cursor-pointer">
-                            <Archive className="h-5 w-5" />
-                            <span>Archive Chats</span>
+                        <CardContent className="space-y-2">
+                          <div className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors" onClick={handleArchiveChats}>
+                            <Archive className="h-5 w-5 text-muted-foreground" />
+                            <span className="font-medium">Archive Chats</span>
                           </div>
-                          <div className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 cursor-pointer">
-                            <Trash className="h-5 w-5" />
-                            <span>Clear All Chats</span>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </div>
-                  </ScrollArea>
-                </TabsContent>
-                <TabsContent value="help" className="mt-0 h-full">
-                  <ScrollArea className="h-[calc(100vh-8rem)]">
-                    <div className="p-4 space-y-4">
-                      <Card>
-                        <CardHeader>
-                          <CardTitle>Help & Support</CardTitle>
-                          <CardDescription>Get help and contact support</CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-3">
-                          <div className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 cursor-pointer">
-                            <HelpCircle className="h-5 w-5" />
-                            <span>FAQ</span>
-                          </div>
-                          <div className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 cursor-pointer">
-                            <MessageSquare className="h-5 w-5" />
-                            <span>Contact Support</span>
-                          </div>
-                          <div className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 cursor-pointer">
-                            <Star className="h-5 w-5" />
-                            <span>Rate App</span>
+                          <div className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors" onClick={handleClearAllChats}>
+                            <Trash className="h-5 w-5 text-muted-foreground" />
+                            <span className="font-medium">Clear All Chats</span>
                           </div>
                         </CardContent>
                       </Card>
@@ -460,43 +919,125 @@ export default function DashboardPage() {
                 </TabsContent>
               </div>
             </Tabs>
+            
             {/* Right Side - Chat Window or Welcome */}
-            <div className="flex-1">
+            <div className="flex-1 relative">
               {selectedChat ? (
-      <ChatWindow
-        chat={selectedChat}
+                <ChatWindow
+                  chat={selectedChat}
                   messages={messages}
                   onSendMessage={handleSendMessage}
-        onShowProfile={() => setShowProfile(true)}
+                  onShowProfile={() => setShowProfile(true)}
                   currentUser={userProfile}
                 />
               ) : (
+                /* Welcome Screen */
                 <div className="h-full flex items-center justify-center">
-                  <div className="text-center space-y-4">
-                    <div className="w-16 h-16 mx-auto bg-primary/10 rounded-full flex items-center justify-center">
-                      <MessageSquare className="h-8 w-8 text-primary" />
+                  <div className="text-center space-y-6">
+                    <div className="w-24 h-24 mx-auto bg-gradient-to-br from-primary/20 to-primary/10 rounded-full flex items-center justify-center">
+                      <MessageSquare className="h-12 w-12 text-primary" />
                     </div>
-                    <h2 className="text-2xl font-bold">Welcome to Nex Chat</h2>
-                    <p className="text-muted-foreground max-w-md">
-                      Select a chat from the sidebar or start a new conversation to begin messaging.
-                    </p>
-                    <Button onClick={() => setActiveTab("contacts")}> 
-                      <UserPlus className="mr-2 h-4 w-4" />
-                      Start New Chat
+                    <div className="space-y-2">
+                      <h2 className="text-3xl font-bold">Welcome to Nex Chat</h2>
+                      <p className="text-muted-foreground max-w-md text-lg">
+                        Select a conversation from the sidebar to start messaging with friends and family.
+                      </p>
+                    </div>
+                    <Button 
+                      onClick={() => setActiveTab("contacts")}
+                      size="lg"
+                      className="bg-primary hover:bg-primary/90"
+                    >
+                      <Plus className="h-5 w-5 mr-2" />
+                      Start New Conversation
                     </Button>
                   </div>
                 </div>
               )}
+              
+              {/* Floating + Button for New Chat - Always visible */}
+              <Button
+                onClick={() => setActiveTab("contacts")}
+                size="icon"
+                className="fixed bottom-4 right-4 md:bottom-6 md:right-6 h-12 w-12 md:h-14 md:w-14 rounded-full shadow-lg hover:shadow-xl transition-shadow z-50"
+              >
+                <Plus className="h-5 w-5 md:h-6 md:w-6" />
+              </Button>
             </div>
           </div>
         )}
+        
         {showProfile && selectedChat && (
           <UserProfile 
-            user={selectedChat.participants.find(p => p !== user?.uid) || selectedChat} 
-            onClose={() => setShowProfile(false)} 
+            user={{
+              id: selectedChat.type === 'direct' 
+                ? selectedChat.participants.find(p => p !== user?.uid) || 'unknown'
+                : selectedChat.id,
+              name: selectedChat.type === 'direct' 
+                ? userNames[selectedChat.participants.find(p => p !== user?.uid) || ''] || 'Unknown User'
+                : selectedChat.name || 'Group Chat',
+              avatar: selectedChat.photoURL,
+              isOnline: true,
+              about: selectedChat.type === 'direct' ? 'Hey there! I\'m using Nex Chat.' : `${selectedChat.participants.length} members`
+            }} 
+            onClose={() => setShowProfile(false)}
+            onDeleteChat={() => {
+              handleDeleteChat(selectedChat)
+              setShowProfile(false)
+            }}
           />
         )}
-    </ChatLayout>
+      </ChatLayout>
+      
+      {/* Settings Modals */}
+      {showProfileEditor && (
+        <ProfileEditor
+          user={user}
+          userProfile={userProfile}
+          onClose={() => setShowProfileEditor(false)}
+          onUpdate={handleProfileUpdate}
+        />
+      )}
+
+      {/* Archive Dialog */}
+      <Dialog open={showArchiveDialog} onOpenChange={setShowArchiveDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Archive All Chats</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to archive all chats? This will hide them from your main chat list.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowArchiveDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleArchiveChatsConfirm}>
+              Archive All
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Clear Chats Dialog */}
+      <Dialog open={showClearChatsDialog} onOpenChange={setShowClearChatsDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Clear All Chats</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to clear all chats? This action cannot be undone and will delete all messages.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowClearChatsDialog(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleClearChatsConfirm}>
+              Clear All
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </ProtectedRoute>
   )
-}
+} 

@@ -48,13 +48,6 @@ export function ChatLayout({ children }: ChatLayoutProps) {
           <span className="text-lg md:text-xl font-bold">Nex Chat</span>
         </Link>
         <div className="flex items-center gap-1 md:gap-2">
-          <Button asChild variant="ghost" size="icon" className="h-8 w-8 md:h-10 md:w-10 rounded-full hover:bg-primary/10">
-            <Link href="/settings">
-              <Settings className="h-4 w-4 md:h-5 md:w-5" />
-              <span className="sr-only">Settings</span>
-            </Link>
-          </Button>
-          
           {/* User Menu */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

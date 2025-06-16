@@ -11,9 +11,10 @@ import type { User } from "@/lib/types"
 interface UserProfileProps {
   user: User
   onClose: () => void
+  onDeleteChat?: () => void
 }
 
-export function UserProfile({ user, onClose }: UserProfileProps) {
+export function UserProfile({ user, onClose, onDeleteChat }: UserProfileProps) {
   const [muted, setMuted] = useState(false)
 
   return (
@@ -116,7 +117,10 @@ export function UserProfile({ user, onClose }: UserProfileProps) {
               <Block className="h-5 w-5 text-muted-foreground" />
               <span>Block {user.name}</span>
             </button>
-            <button className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-muted/50 transition-colors">
+            <button 
+              className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-muted/50 transition-colors"
+              onClick={onDeleteChat}
+            >
               <Trash2 className="h-5 w-5 text-destructive" />
               <span className="text-destructive">Delete chat</span>
             </button>

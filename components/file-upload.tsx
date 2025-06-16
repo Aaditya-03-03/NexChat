@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils"
 
 interface FileUploadProps {
   onFileSelect: (file: File) => void
-  onUploadComplete: (url: string, type: 'image' | 'file') => void
+  onUploadComplete: (url: string, type: 'image' | 'file' | 'voice' | 'video') => void
   onUploadError: (error: string) => void
   chatId: string
   className?: string
@@ -28,33 +28,46 @@ export function FileUpload({
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const abortControllerRef = useRef<AbortController | null>(null)
 
   const handleFileSelect = async (files: FileList | null) => {
     if (!files || files.length === 0) return
 
     const file = files[0]
     
-    // Validate file size (10MB limit)
-    if (file.size > 10 * 1024 * 1024) {
-      onUploadError("File size must be less than 10MB")
+    // Validate file size
+    const sizeValidation = FileService.validateFileSize(file)
+    if (!sizeValidation.valid) {
+      onUploadError(sizeValidation.error || "File too large")
       return
     }
 
     setUploading(true)
     setUploadProgress(0)
+    
+    // Create abort controller for cancellation
+    abortControllerRef.current = new AbortController()
 
     try {
       let result
-      let type: 'image' | 'file'
+      let type: 'image' | 'file' | 'voice' | 'video'
 
       if (FileService.isImage(file)) {
-        result = await FileService.uploadImage(file, chatId)
+        result = await FileService.uploadImage(file, chatId, abortControllerRef.current.signal)
         type = 'image'
+      } else if (FileService.isAudio(file)) {
+        result = await FileService.uploadVoiceNote(file, chatId, abortControllerRef.current.signal)
+        type = 'voice'
+      } else if (FileService.isVideo(file)) {
+        result = await FileService.uploadVideo(file, chatId, abortControllerRef.current.signal)
+        type = 'video'
       } else if (FileService.isDocument(file)) {
-        result = await FileService.uploadDocument(file, chatId)
+        result = await FileService.uploadDocument(file, chatId, abortControllerRef.current.signal)
         type = 'file'
       } else {
-        throw new Error("Unsupported file type")
+        // For any other file type
+        result = await FileService.uploadFile(file, chatId, abortControllerRef.current.signal)
+        type = 'file'
       }
 
       if (result.success && result.url) {
@@ -64,10 +77,15 @@ export function FileUpload({
         throw new Error(result.error || "Upload failed")
       }
     } catch (error: any) {
-      onUploadError(error.message)
+      if (error.name === 'AbortError') {
+        onUploadError("Upload cancelled")
+      } else {
+        onUploadError(error.message)
+      }
     } finally {
       setUploading(false)
       setUploadProgress(0)
+      abortControllerRef.current = null
     }
   }
 
@@ -91,6 +109,12 @@ export function FileUpload({
     handleFileSelect(e.target.files)
   }
 
+  const handleCancelUpload = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+    }
+  }
+
   const getFileIcon = (file: File) => {
     if (FileService.isImage(file)) {
       return <ImageIcon className="h-4 w-4" />
@@ -110,7 +134,7 @@ export function FileUpload({
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/*,.pdf,.doc,.docx,.txt,.zip"
+        accept="image/*,audio/*,video/*,.pdf,.doc,.docx,.txt,.zip,.mp3,.wav,.m4a,.mp4,.mov,.avi"
         onChange={handleInputChange}
         className="hidden"
         disabled={disabled || uploading}
@@ -131,11 +155,22 @@ export function FileUpload({
       >
         {uploading ? (
           <div className="space-y-2">
-            <div className="flex items-center justify-center">
-              <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                <span className="text-sm font-medium">Uploading...</span>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleCancelUpload}
+                className="h-6 w-6 p-0 text-destructive hover:text-destructive"
+              >
+                <X className="h-4 w-4" />
+              </Button>
             </div>
-            <p className="text-sm text-muted-foreground">Uploading...</p>
             <Progress value={uploadProgress} className="w-full" />
+            <p className="text-xs text-muted-foreground">Click cancel to stop upload</p>
           </div>
         ) : (
           <div className="space-y-2">
