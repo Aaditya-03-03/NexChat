@@ -40,28 +40,28 @@ export function ChatLayout({ children }: ChatLayoutProps) {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <header className="sticky top-0 left-0 right-0 z-50 flex h-14 md:h-16 items-center justify-between px-3 md:px-4 backdrop-blur-md bg-background/80 border-b border-border/40">
+      <header className="sticky top-0 left-0 right-0 z-50 flex h-14 sm:h-16 items-center justify-between px-3 sm:px-4 backdrop-blur-md bg-background/80 border-b border-border/40">
         <Link href="/" className="flex items-center gap-2">
-          <div className="flex h-7 w-7 md:h-8 md:w-8 items-center justify-center rounded-full bg-primary">
-            <MessageSquare className="h-3 w-3 md:h-4 md:w-4 text-white" />
+          <div className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-full bg-primary">
+            <MessageSquare className="h-3 w-3 sm:h-4 sm:w-4 text-white" />
           </div>
-          <span className="text-lg md:text-xl font-bold">Nex Chat</span>
+          <span className="text-lg sm:text-xl font-bold">Nex Chat</span>
         </Link>
-        <div className="flex items-center gap-1 md:gap-2">
+        <div className="flex items-center gap-1 sm:gap-2">
           {/* User Menu */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="h-8 md:h-10 px-2 md:px-3 rounded-xl hover:bg-primary/10">
-                <Avatar className="h-6 w-6 md:h-7 md:w-7 mr-2">
+              <Button variant="ghost" className="h-8 sm:h-10 px-2 sm:px-3 rounded-xl hover:bg-primary/10">
+                <Avatar className="h-6 w-6 sm:h-7 sm:w-7 mr-2">
                   <AvatarImage src={userProfile?.photoURL} alt={userProfile?.displayName} />
                   <AvatarFallback className="text-xs">
                     {userProfile?.displayName?.charAt(0) || user?.email?.charAt(0) || "U"}
                   </AvatarFallback>
                 </Avatar>
-                <span className="hidden md:block text-sm font-medium truncate max-w-24">
+                <span className="hidden sm:block text-sm font-medium truncate max-w-24">
                   {userProfile?.displayName || user?.email?.split('@')[0] || "User"}
                 </span>
-                <ChevronDown className="h-3 w-3 md:h-4 md:w-4 ml-1" />
+                <ChevronDown className="h-3 w-3 sm:h-4 sm:w-4 ml-1" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48 glass-card">
@@ -91,7 +91,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
         </div>
       </header>
       <main className="flex-1">
-        <div className="h-[calc(100vh-3.5rem)] md:h-[calc(100vh-4rem)] flex">{children}</div>
+        <div className="h-[calc(100vh-3.5rem)] sm:h-[calc(100vh-4rem)] flex">{children}</div>
       </main>
 
       {/* Logout Confirmation Dialog */}

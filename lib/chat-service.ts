@@ -49,6 +49,9 @@ export interface Message {
       address?: string;
     };
   };
+  // URL fields for file sharing
+  shortUrl?: string;
+  originalUrl?: string;
 }
 
 export interface Chat {
@@ -76,20 +79,26 @@ export interface UserStatus {
 export class ChatService {
   // Get real-time messages for a chat
   static subscribeToMessages(chatId: string, callback: (messages: Message[]) => void) {
+    console.log('ChatService: Subscribing to messages for chat:', chatId)
     const messagesRef = collection(db, 'chats', chatId, 'messages');
     const q = query(messagesRef, orderBy('timestamp', 'desc'), limit(50));
     
     return onSnapshot(q, (snapshot) => {
+      console.log('ChatService: Received snapshot for chat:', chatId, 'docs count:', snapshot.docs.length)
       const messages: Message[] = [];
       snapshot.forEach((doc) => {
         messages.push({ id: doc.id, ...doc.data() } as Message);
       });
+      console.log('ChatService: Calling callback with messages:', messages.length)
       callback(messages.reverse());
+    }, (error) => {
+      console.error('ChatService: Error in message subscription for chat:', chatId, error)
     });
   }
 
   // Get real-time chats for a user
   static subscribeToUserChats(userId: string, callback: (chats: Chat[]) => void) {
+    console.log('ChatService: Subscribing to user chats for user:', userId)
     const chatsRef = collection(db, 'chats');
     const q = query(
       chatsRef,
@@ -98,11 +107,15 @@ export class ChatService {
     );
     
     return onSnapshot(q, (snapshot) => {
+      console.log('ChatService: Received user chats snapshot, docs count:', snapshot.docs.length)
       const chats: Chat[] = [];
       snapshot.forEach((doc) => {
         chats.push({ id: doc.id, ...doc.data() } as Chat);
       });
+      console.log('ChatService: Calling user chats callback with chats:', chats.length)
       callback(chats);
+    }, (error) => {
+      console.error('ChatService: Error in user chats subscription for user:', userId, error)
     });
   }
 

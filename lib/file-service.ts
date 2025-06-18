@@ -1,9 +1,11 @@
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { storage } from './firebase';
+import { createShortLink } from './utils';
 
 export interface UploadResult {
   success: boolean;
   url?: string;
+  shortUrl?: string;
   error?: string;
 }
 
@@ -52,8 +54,9 @@ export class FileService {
       }
       
       const downloadURL = await getDownloadURL(storageRef);
+      const shortUrl = createShortLink(downloadURL, file.name);
       
-      return { success: true, url: downloadURL };
+      return { success: true, url: downloadURL, shortUrl };
     } catch (error: any) {
       if (error.message === 'Upload cancelled') {
         throw error;
@@ -77,8 +80,9 @@ export class FileService {
       }
       
       const downloadURL = await getDownloadURL(storageRef);
+      const shortUrl = createShortLink(downloadURL, file.name);
       
-      return { success: true, url: downloadURL };
+      return { success: true, url: downloadURL, shortUrl };
     } catch (error: any) {
       if (error.message === 'Upload cancelled') {
         throw error;
@@ -102,8 +106,9 @@ export class FileService {
       }
       
       const downloadURL = await getDownloadURL(storageRef);
+      const shortUrl = createShortLink(downloadURL, file.name);
       
-      return { success: true, url: downloadURL };
+      return { success: true, url: downloadURL, shortUrl };
     } catch (error: any) {
       if (error.message === 'Upload cancelled') {
         throw error;
@@ -127,8 +132,9 @@ export class FileService {
       }
       
       const downloadURL = await getDownloadURL(storageRef);
+      const shortUrl = createShortLink(downloadURL, file.name);
       
-      return { success: true, url: downloadURL };
+      return { success: true, url: downloadURL, shortUrl };
     } catch (error: any) {
       if (error.message === 'Upload cancelled') {
         throw error;
@@ -152,8 +158,9 @@ export class FileService {
       }
       
       const downloadURL = await getDownloadURL(storageRef);
+      const shortUrl = createShortLink(downloadURL, file.name);
       
-      return { success: true, url: downloadURL };
+      return { success: true, url: downloadURL, shortUrl };
     } catch (error: any) {
       if (error.message === 'Upload cancelled') {
         throw error;

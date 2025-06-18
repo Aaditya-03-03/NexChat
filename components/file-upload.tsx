@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils"
 
 interface FileUploadProps {
   onFileSelect: (file: File) => void
-  onUploadComplete: (url: string, type: 'image' | 'file' | 'voice' | 'video') => void
+  onUploadComplete: (url: string, type: 'image' | 'file' | 'voice' | 'video', shortUrl?: string) => void
   onUploadError: (error: string) => void
   chatId: string
   className?: string
@@ -71,8 +71,13 @@ export function FileUpload({
       }
 
       if (result.success && result.url) {
-        onUploadComplete(result.url, type)
+        onUploadComplete(result.url, type, result.shortUrl)
         setUploadProgress(100)
+        
+        // Show success message with short link info
+        if (result.shortUrl) {
+          console.log(`File uploaded successfully! Short link: ${result.shortUrl}`)
+        }
       } else {
         throw new Error(result.error || "Upload failed")
       }

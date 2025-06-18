@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { Phone, Video, MoreVertical, Smile, Paperclip, Mic, Send, ImageIcon, File, MapPin, X, LogOut, Search, Edit, Trash2, Reply, Play, Pause, Square } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
@@ -21,17 +21,22 @@ import { useRouter } from "next/navigation"
 import { useAuthContext } from "@/components/auth-provider"
 import { toast } from "sonner"
 import { FileService } from "@/lib/file-service"
+import { ShortLinkDisplay } from "@/components/short-link-display"
 
 interface ChatWindowProps {
   chat: Chat
   messages: Message[]
-  onSendMessage: (content: string, type?: 'text' | 'image' | 'file', fileUrl?: string) => void
+  onSendMessage: (content: string, type?: 'text' | 'image' | 'file', fileUrl?: string, shortUrl?: string) => void
   onShowProfile: () => void
   onBackToChatList?: () => void
+  onDeleteChat?: (chatId: string) => void
   currentUser: any
+  chatDisplayName?: string
 }
 
-export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBackToChatList, currentUser }: ChatWindowProps) {
+export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBackToChatList, onDeleteChat, currentUser, chatDisplayName }: ChatWindowProps) {
+  console.log('ChatWindow rendered with chat:', chat?.id, 'messages:', messages?.length, 'currentUser:', !!currentUser)
+  
   const router = useRouter()
   const { logout } = useAuthContext()
   const [newMessage, setNewMessage] = useState("")
@@ -41,9 +46,9 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
   const [editingMessage, setEditingMessage] = useState<Message | null>(null)
   const [replyToMessage, setReplyToMessage] = useState<Message | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const [chatDisplayName, setChatDisplayName] = useState("")
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [isUploading, setIsUploading] = useState(false)
   
   // Voice recording states
   const [isRecording, setIsRecording] = useState(false)
@@ -52,50 +57,58 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
-  // Fetch chat display name
-  useEffect(() => {
-    const fetchChatDisplayName = async () => {
-      if (chat.type === 'group') {
-        setChatDisplayName(chat.name || 'Group Chat')
-      } else {
-        // For direct chats, fetch the other user's name
-        const otherUserId = chat.participants.find(p => p !== currentUser?.uid)
-        if (otherUserId) {
-          try {
-            const userDoc = await getDoc(doc(db, 'users', otherUserId))
-            if (userDoc.exists()) {
-              setChatDisplayName(userDoc.data().displayName || 'Unknown User')
-            } else {
-              setChatDisplayName('Unknown User')
-            }
-          } catch (error) {
-            setChatDisplayName('Unknown User')
-          }
-        }
-      }
+  // Get chat display name from chat object
+  const chatDisplayNameMemo = useMemo(() => {
+    // Use the passed chatDisplayName prop if available
+    if (chatDisplayName) {
+      return chatDisplayName
     }
-
-    fetchChatDisplayName()
-  }, [chat, currentUser])
+    
+    if (chat.type === 'group') {
+      return chat.name || 'Group Chat'
+    } else {
+      // For direct chats, we'll use a placeholder since the name is fetched in dashboard
+      return 'Chat'
+    }
+  }, [chat, chatDisplayName])
 
   // Scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
 
-  const handleSendMessage = () => {
+  const handleSendMessage = useCallback(() => {
     if (!newMessage.trim() && !selectedFile) return
+    if (isUploading) return // Prevent multiple uploads
 
     if (selectedFile) {
-      // Handle file upload
-      const reader = new FileReader()
-      reader.onload = () => {
-        const fileUrl = reader.result as string
-        const type = selectedFile.type.startsWith('image/') ? 'image' : 'file'
-        onSendMessage(newMessage.trim() || selectedFile.name, type, fileUrl)
-        setSelectedFile(null)
-      }
-      reader.readAsDataURL(selectedFile)
+      // Use FileService for proper file upload
+      const uploadFile = async () => {
+        setIsUploading(true);
+        try {
+          let result;
+          const type = selectedFile.type.startsWith('image/') ? 'image' : 'file';
+          
+          if (type === 'image') {
+            result = await FileService.uploadImage(selectedFile, chat.id);
+          } else {
+            result = await FileService.uploadFile(selectedFile, chat.id);
+          }
+          
+          if (result.success && result.url) {
+            onSendMessage(newMessage.trim() || selectedFile.name, type, result.url, result.shortUrl);
+            setSelectedFile(null);
+          } else {
+            toast.error(result.error || "Failed to upload file");
+          }
+        } catch (error) {
+          toast.error("Failed to upload file");
+        } finally {
+          setIsUploading(false);
+        }
+      };
+      
+      uploadFile();
     } else {
       onSendMessage(newMessage.trim())
     }
@@ -103,28 +116,28 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
     setNewMessage("")
     setShowEmojiPicker(false)
     setReplyToMessage(null)
-  }
+  }, [newMessage, selectedFile, onSendMessage, chat.id, isUploading])
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault()
       handleSendMessage()
     }
-  }
+  }, [handleSendMessage])
 
-  const addEmoji = (emoji: string) => {
+  const addEmoji = useCallback((emoji: string) => {
     setNewMessage((prev) => prev + emoji)
-  }
+  }, [])
 
-  const formatTime = (timestamp: any) => {
+  const formatTime = useCallback((timestamp: any) => {
     if (!timestamp) return ""
     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp)
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-  }
+  }, [])
 
-  const isMyMessage = (message: Message) => {
+  const isMyMessage = useCallback((message: Message) => {
     return message.userId === currentUser?.uid
-  }
+  }, [currentUser?.uid])
 
   const handleLogout = async () => {
     setIsLoggingOut(true)
@@ -140,21 +153,21 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
     setIsLoggingOut(false)
   }
 
-  const handleAddReaction = async (messageId: string, emoji: string) => {
+  const handleAddReaction = useCallback(async (messageId: string, emoji: string) => {
     const result = await ChatService.addReaction(chat.id, messageId, currentUser.uid, emoji)
     if (!result.success) {
       toast.error(result.error || "Failed to add reaction")
     }
-  }
+  }, [chat.id, currentUser?.uid])
 
-  const handleRemoveReaction = async (messageId: string, emoji: string) => {
+  const handleRemoveReaction = useCallback(async (messageId: string, emoji: string) => {
     const result = await ChatService.removeReaction(chat.id, messageId, currentUser.uid, emoji)
     if (!result.success) {
       toast.error(result.error || "Failed to remove reaction")
     }
-  }
+  }, [chat.id, currentUser?.uid])
 
-  const handleEditMessage = async (messageId: string, newContent: string) => {
+  const handleEditMessage = useCallback(async (messageId: string, newContent: string) => {
     const result = await ChatService.editMessage(chat.id, messageId, newContent, currentUser.uid)
     if (result.success) {
       setEditingMessage(null)
@@ -162,33 +175,33 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
     } else {
       toast.error(result.error || "Failed to edit message")
     }
-  }
+  }, [chat.id, currentUser?.uid])
 
-  const handleDeleteMessage = async (messageId: string) => {
+  const handleDeleteMessage = useCallback(async (messageId: string) => {
     const result = await ChatService.deleteMessage(chat.id, messageId, currentUser.uid)
     if (result.success) {
       toast.success("Message deleted")
     } else {
       toast.error(result.error || "Failed to delete message")
     }
-  }
+  }, [chat.id, currentUser?.uid])
 
-  const handleFileUpload = (file: File) => {
+  const handleFileUpload = useCallback((file: File) => {
     setSelectedFile(file)
     setShowAttachMenu(false)
-  }
+  }, [])
 
-  const handleFileUploadComplete = (url: string, type: 'image' | 'file') => {
-    onSendMessage(selectedFile?.name || '', type, url)
+  const handleFileUploadComplete = useCallback((url: string, type: 'image' | 'file', shortUrl?: string) => {
+    onSendMessage(selectedFile?.name || '', type, url, shortUrl)
     setSelectedFile(null)
-  }
+  }, [selectedFile, onSendMessage])
 
-  const handleFileUploadError = (error: string) => {
+  const handleFileUploadError = useCallback((error: string) => {
     toast.error(error)
-  }
+  }, [])
 
   // Voice recording functions
-  const startRecording = async () => {
+  const startRecording = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       const mediaRecorder = new MediaRecorder(stream)
@@ -216,9 +229,9 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
     } catch (error) {
       toast.error("Failed to start recording. Please check microphone permissions.")
     }
-  }
+  }, [])
 
-  const stopRecording = () => {
+  const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop()
       setIsRecording(false)
@@ -226,9 +239,9 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
         clearInterval(recordingIntervalRef.current)
       }
     }
-  }
+  }, [isRecording])
 
-  const sendVoiceNote = async () => {
+  const sendVoiceNote = useCallback(async () => {
     if (!audioBlob) return
 
     try {
@@ -236,7 +249,7 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
       const result = await FileService.uploadVoiceNote(file, chat.id)
       
       if (result.success && result.url) {
-        onSendMessage('Voice note', 'voice', result.url)
+        onSendMessage('Voice note', 'voice', result.url, result.shortUrl)
         setAudioBlob(null)
         setRecordingTime(0)
       } else {
@@ -245,22 +258,28 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
     } catch (error) {
       toast.error("Failed to send voice note")
     }
-  }
+  }, [audioBlob, chat.id, onSendMessage])
 
-  const shareLocation = () => {
+  const shareLocation = useCallback(() => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         async (position) => {
           const { latitude, longitude } = position.coords
-          const locationData = {
-            latitude,
-            longitude,
-            address: `Location at ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`
-          }
           
-          // Create location message
-          const locationMessage = `📍 Location shared\nLatitude: ${latitude.toFixed(6)}\nLongitude: ${longitude.toFixed(6)}`
-          onSendMessage(locationMessage, 'location', JSON.stringify(locationData))
+          try {
+            // Get address from coordinates (you might want to use a geocoding service)
+            const locationData = {
+              latitude,
+              longitude,
+              address: `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`
+            }
+            
+            const locationString = JSON.stringify(locationData)
+            onSendMessage(locationString, 'location')
+            setShowAttachMenu(false)
+          } catch (error) {
+            toast.error("Failed to share location")
+          }
         },
         (error) => {
           toast.error("Failed to get location. Please check location permissions.")
@@ -269,33 +288,24 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
     } else {
       toast.error("Geolocation is not supported by this browser.")
     }
-  }
+  }, [onSendMessage])
 
-  const formatRecordingTime = (seconds: number) => {
+  const formatRecordingTime = useCallback((seconds: number) => {
     const mins = Math.floor(seconds / 60)
     const secs = seconds % 60
     return `${mins}:${secs.toString().padStart(2, '0')}`
-  }
+  }, [])
 
-  const handleMessageSelect = (message: Message) => {
-    // Scroll to message
-    const messageElement = document.getElementById(`message-${message.id}`)
-    if (messageElement) {
-      messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      messageElement.classList.add('bg-yellow-100', 'dark:bg-yellow-900')
-      setTimeout(() => {
-        messageElement.classList.remove('bg-yellow-100', 'dark:bg-yellow-900')
-      }, 2000)
-    }
-    setShowSearch(false)
-  }
+  const handleMessageSelect = useCallback((message: Message) => {
+    setReplyToMessage(message)
+  }, [])
 
   return (
     <div className="flex-1 flex flex-col glass-card rounded-none md:rounded-l-2xl overflow-hidden animate-slide-from-right">
       {/* Chat header */}
-      <div className="flex items-center justify-between p-3 md:p-4 border-b border-border/40">
+      <div className="flex items-center justify-between p-2 sm:p-3 md:p-4 border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div
-          className="flex items-center gap-3 cursor-pointer"
+          className="flex items-center gap-2 sm:gap-3 cursor-pointer min-w-0 flex-1"
           role="button"
           tabIndex={0}
           onClick={onShowProfile}
@@ -306,57 +316,57 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
               variant="ghost"
               size="icon"
               onClick={e => { e.stopPropagation(); onBackToChatList(); }}
-              className="h-8 w-8 md:h-10 md:w-10 rounded-full hover:bg-primary/10 -ml-1"
+              className="h-8 w-8 sm:h-9 sm:w-9 md:h-10 md:w-10 rounded-full hover:bg-primary/10 -ml-1 flex-shrink-0"
             >
-              <svg className="h-4 w-4 md:h-5 md:w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="h-4 w-4 sm:h-5 sm:w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
               </svg>
               <span className="sr-only">Back to chats</span>
             </Button>
           )}
-          <div className="relative">
-            <Avatar className="h-8 w-8 md:h-10 md:w-10">
+          <div className="relative flex-shrink-0">
+            <Avatar className="h-8 w-8 sm:h-9 sm:w-9 md:h-10 md:w-10">
               {chat.type === 'group' ? (
                 <div className="bg-muted h-full w-full flex items-center justify-center">
-                  <span className="text-sm font-medium">{chatDisplayName.charAt(0)}</span>
+                  <span className="text-sm font-medium">{chatDisplayNameMemo.charAt(0)}</span>
                 </div>
               ) : (
                 <>
-                  <AvatarImage src="/placeholder.svg" alt={chatDisplayName} />
-                  <AvatarFallback>{chatDisplayName.charAt(0)}</AvatarFallback>
+                  <AvatarImage src="/placeholder.svg" alt={chatDisplayNameMemo} />
+                  <AvatarFallback>{chatDisplayNameMemo.charAt(0)}</AvatarFallback>
                 </>
               )}
             </Avatar>
           </div>
-          <div className="text-left">
-            <p className="font-medium text-sm md:text-base">{chatDisplayName}</p>
-            <p className="text-xs text-muted-foreground">
+          <div className="text-left min-w-0 flex-1">
+            <p className="font-medium text-sm sm:text-base truncate">{chatDisplayNameMemo}</p>
+            <p className="text-xs text-muted-foreground truncate">
               {chat.type === 'group' ? `${chat.participants.length} members` : 'Online'}
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 flex-shrink-0">
           <Button 
             variant="ghost" 
             size="icon" 
             onClick={() => setShowSearch(!showSearch)}
-            className="h-8 w-8 md:h-10 md:w-10 rounded-full hover:bg-primary/10"
+            className="h-8 w-8 sm:h-9 sm:w-9 md:h-10 md:w-10 rounded-full hover:bg-primary/10"
           >
-            <Search className="h-4 w-4 md:h-5 md:w-5" />
+            <Search className="h-4 w-4 sm:h-5 sm:w-5" />
             <span className="sr-only">Search messages</span>
           </Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8 md:h-10 md:w-10 rounded-full hover:bg-primary/10">
-            <Phone className="h-4 w-4 md:h-5 md:w-5" />
+          <Button variant="ghost" size="icon" className="h-8 w-8 sm:h-9 sm:w-9 md:h-10 md:w-10 rounded-full hover:bg-primary/10">
+            <Phone className="h-4 w-4 sm:h-5 sm:w-5" />
             <span className="sr-only">Voice call</span>
           </Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8 md:h-10 md:w-10 rounded-full hover:bg-primary/10">
-            <Video className="h-4 w-4 md:h-5 md:w-5" />
+          <Button variant="ghost" size="icon" className="h-8 w-8 sm:h-9 sm:w-9 md:h-10 md:w-10 rounded-full hover:bg-primary/10">
+            <Video className="h-4 w-4 sm:h-5 sm:w-5" />
             <span className="sr-only">Video call</span>
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8 md:h-10 md:w-10 rounded-full hover:bg-primary/10">
-                <MoreVertical className="h-4 w-4 md:h-5 md:w-5" />
+              <Button variant="ghost" size="icon" className="h-8 w-8 sm:h-9 sm:w-9 md:h-10 md:w-10 rounded-full hover:bg-primary/10">
+                <MoreVertical className="h-4 w-4 sm:h-5 sm:w-5" />
                 <span className="sr-only">More options</span>
               </Button>
             </DropdownMenuTrigger>
@@ -365,7 +375,15 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
               <DropdownMenuItem onClick={() => setShowSearch(true)}>Search in conversation</DropdownMenuItem>
               <DropdownMenuItem>Mute notifications</DropdownMenuItem>
               <DropdownMenuItem>Block user</DropdownMenuItem>
-              <DropdownMenuItem className="text-destructive">Delete chat</DropdownMenuItem>
+              {onDeleteChat && (
+                <DropdownMenuItem 
+                  onClick={() => onDeleteChat(chat.id)}
+                  className="text-destructive focus:text-destructive cursor-pointer"
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete chat
+                </DropdownMenuItem>
+              )}
               <DropdownMenuSeparator />
               <DropdownMenuItem 
                 onClick={handleLogout}
@@ -454,39 +472,67 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
                     ) : (
                       <>
                         {message.type === 'image' ? (
-                          <img 
-                            src={message.content} 
-                            alt="Shared image" 
-                            className="max-w-full rounded-lg cursor-pointer"
-                            onClick={() => window.open(message.content, '_blank')}
-                          />
-                        ) : message.type === 'voice' ? (
-                          <div className="flex items-center gap-3 p-3 bg-background/20 rounded-lg">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 rounded-full"
-                              onClick={() => {
-                                const audio = new Audio(message.content)
-                                audio.play()
-                              }}
-                            >
-                              <Play className="h-4 w-4" />
-                            </Button>
-                            <div className="flex-1">
-                              <div className="w-full bg-muted/30 rounded-full h-2">
-                                <div className="bg-primary h-2 rounded-full" style={{ width: '0%' }}></div>
+                          <div className="space-y-2">
+                            <div className="relative group">
+                              <img 
+                                src={message.originalUrl || message.content} 
+                                alt="Shared image" 
+                                className="max-w-full h-auto rounded-lg cursor-pointer transition-transform hover:scale-105 object-cover"
+                                style={{
+                                  maxHeight: '300px',
+                                  width: 'auto',
+                                  minWidth: '200px'
+                                }}
+                                onClick={() => window.open(message.originalUrl || message.content, '_blank')}
+                                loading="lazy"
+                              />
+                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors rounded-lg flex items-center justify-center">
+                                <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 text-white px-2 py-1 rounded text-xs">
+                                  Click to view full size
+                                </div>
                               </div>
-                              <p className="text-xs text-muted-foreground mt-1">Voice message</p>
                             </div>
+                            {message.shortUrl && (
+                              <ShortLinkDisplay shortUrl={message.shortUrl} />
+                            )}
+                          </div>
+                        ) : message.type === 'voice' ? (
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-3 p-3 bg-background/20 rounded-lg">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 rounded-full"
+                                onClick={() => {
+                                  const audio = new Audio(message.originalUrl || message.content)
+                                  audio.play()
+                                }}
+                              >
+                                <Play className="h-4 w-4" />
+                              </Button>
+                              <div className="flex-1">
+                                <div className="w-full bg-muted/30 rounded-full h-2">
+                                  <div className="bg-primary h-2 rounded-full" style={{ width: '0%' }}></div>
+                                </div>
+                                <p className="text-xs text-muted-foreground mt-1">Voice message</p>
+                              </div>
+                            </div>
+                            {message.shortUrl && (
+                              <ShortLinkDisplay shortUrl={message.shortUrl} />
+                            )}
                           </div>
                         ) : message.type === 'video' ? (
-                          <video 
-                            src={message.content} 
-                            controls
-                            className="max-w-full rounded-lg"
-                            preload="metadata"
-                          />
+                          <div className="space-y-2">
+                            <video 
+                              src={message.originalUrl || message.content} 
+                              controls
+                              className="max-w-full rounded-lg"
+                              preload="metadata"
+                            />
+                            {message.shortUrl && (
+                              <ShortLinkDisplay shortUrl={message.shortUrl} />
+                            )}
+                          </div>
                         ) : message.type === 'location' ? (
                           <div className="p-3 bg-background/20 rounded-lg">
                             <div className="flex items-center gap-2 mb-2">
@@ -511,16 +557,25 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
                             </Button>
                           </div>
                         ) : message.type === 'file' ? (
-                          <div className="flex items-center gap-2 p-2 bg-background/20 rounded-lg">
-                            <File className="h-4 w-4" />
-                            <span className="text-sm">{message.content}</span>
-                            <Button 
-                              size="sm" 
-                              variant="ghost"
-                              onClick={() => window.open(message.content, '_blank')}
-                            >
-                              Download
-                            </Button>
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2 p-2 bg-background/20 rounded-lg">
+                              <File className="h-4 w-4" />
+                              <div className="flex-1 min-w-0">
+                                <span className="text-sm font-medium block truncate">
+                                  {message.fileMetadata?.fileName || message.content}
+                                </span>
+                              </div>
+                              <Button 
+                                size="sm" 
+                                variant="ghost"
+                                onClick={() => window.open(message.originalUrl || message.content, '_blank')}
+                              >
+                                Download
+                              </Button>
+                            </div>
+                            {message.shortUrl && (
+                              <ShortLinkDisplay shortUrl={message.shortUrl} />
+                            )}
                           </div>
                         ) : (
                           message.content
@@ -627,11 +682,18 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
               <span className="text-xs text-muted-foreground">
                 ({FileService.formatFileSize(selectedFile.size)})
               </span>
+              {isUploading && (
+                <div className="flex items-center gap-1">
+                  <div className="h-3 w-3 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                  <span className="text-xs text-muted-foreground">Uploading...</span>
+                </div>
+              )}
             </div>
             <Button
               variant="ghost"
               size="sm"
               onClick={() => setSelectedFile(null)}
+              disabled={isUploading}
               className="h-6 w-6 p-0 text-destructive hover:text-destructive"
             >
               <X className="h-4 w-4" />
@@ -776,41 +838,45 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
       )}
 
       {/* Message input */}
-      <div className="p-3 md:p-4 border-t border-border/40">
+      <div className="p-2 sm:p-3 md:p-4 border-t border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="flex items-center gap-2">
           <Button
             variant="ghost"
             size="icon"
             onClick={() => setShowAttachMenu(!showAttachMenu)}
-            className="h-8 w-8 md:h-10 md:w-10 rounded-full hover:bg-primary/10"
+            className="h-9 w-9 sm:h-10 sm:w-10 md:h-11 md:w-11 rounded-full hover:bg-primary/10 flex-shrink-0"
           >
-            <Paperclip className="h-4 w-4 md:h-5 md:w-5" />
+            <Paperclip className="h-4 w-4 sm:h-5 sm:w-5" />
             <span className="sr-only">Attach file</span>
           </Button>
-          <div className="flex-1 relative">
+          <div className="flex-1 relative min-w-0">
             <Input
               placeholder="Type a message..."
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
               onKeyDown={handleKeyDown}
-              className="pr-10 h-9 md:h-10"
+              className="pr-10 h-9 sm:h-10 md:h-11 text-sm sm:text-base"
             />
             <Button
               variant="ghost"
               size="icon"
               onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-              className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 md:h-8 md:w-8 rounded-full hover:bg-primary/10"
+              className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 sm:h-8 sm:w-8 rounded-full hover:bg-primary/10"
             >
-              <Smile className="h-4 w-4 md:h-5 md:w-5" />
+              <Smile className="h-4 w-4 sm:h-5 sm:w-5" />
               <span className="sr-only">Add emoji</span>
             </Button>
           </div>
           <Button
             onClick={handleSendMessage}
-            disabled={!newMessage.trim() && !selectedFile}
-            className="h-8 w-8 md:h-10 md:w-10 rounded-full"
+            disabled={(!newMessage.trim() && !selectedFile) || isUploading}
+            className="h-9 w-9 sm:h-10 sm:w-10 md:h-11 md:w-11 rounded-full flex-shrink-0"
           >
-            <Send className="h-4 w-4 md:h-5 md:w-5" />
+            {isUploading ? (
+              <div className="h-4 w-4 sm:h-5 sm:w-5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+            ) : (
+              <Send className="h-4 w-4 sm:h-5 sm:w-5" />
+            )}
             <span className="sr-only">Send message</span>
           </Button>
         </div>

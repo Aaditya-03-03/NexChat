@@ -38,6 +38,7 @@ interface ChatHeaderProps {
   onShowGroupManagement?: () => void
   isMobile?: boolean
   className?: string
+  chatDisplayName?: string
 }
 
 export function ChatHeader({ 
@@ -48,7 +49,8 @@ export function ChatHeader({
   onShowSearch, 
   onShowGroupManagement,
   isMobile = false,
-  className = "" 
+  className = "",
+  chatDisplayName
 }: ChatHeaderProps) {
   const [isMuted, setIsMuted] = useState(false)
   const [isPinned, setIsPinned] = useState(false)
@@ -172,7 +174,7 @@ export function ChatHeader({
           <div className="text-left flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <p className="font-medium text-sm md:text-base truncate">
-                {chat.name || "Unnamed Chat"}
+                {chatDisplayName || chat.name || "Unnamed Chat"}
               </p>
               {isMuted && (
                 <Badge variant="secondary" className="text-xs">
