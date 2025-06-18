@@ -297,11 +297,27 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
   }, [])
 
   const handleMessageSelect = useCallback((message: Message) => {
-    setReplyToMessage(message)
+    // Close the search overlay
+    setShowSearch(false)
+    
+    // Find the message element and scroll to it
+    const messageElement = document.getElementById(`message-${message.id}`)
+    if (messageElement) {
+      messageElement.scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'center' 
+      })
+      
+      // Add a temporary highlight effect
+      messageElement.classList.add('ring-2', 'ring-primary', 'ring-opacity-50')
+      setTimeout(() => {
+        messageElement.classList.remove('ring-2', 'ring-primary', 'ring-opacity-50')
+      }, 2000)
+    }
   }, [])
 
   return (
-    <div className="flex-1 flex flex-col glass-card rounded-none md:rounded-l-2xl overflow-hidden animate-slide-from-right">
+    <div className="flex-1 flex flex-col glass-card rounded-none md:rounded-l-2xl overflow-hidden animate-slide-from-right h-full">
       {/* Chat header */}
       <div className="flex items-center justify-between p-2 sm:p-3 md:p-4 border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div
@@ -311,11 +327,12 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
           onClick={onShowProfile}
           onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') onShowProfile(); }}
         >
+          {/* Back button - show on mobile or when onBackToChatList is provided */}
           {onBackToChatList && (
             <Button
               variant="ghost"
               size="icon"
-              onClick={e => { e.stopPropagation(); onBackToChatList(); }}
+              onClick={e => { e.stopPropagation(); onBackToChatList?.(); }}
               className="h-8 w-8 sm:h-9 sm:w-9 md:h-10 md:w-10 rounded-full hover:bg-primary/10 -ml-1 flex-shrink-0"
             >
               <svg className="h-4 w-4 sm:h-5 sm:w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

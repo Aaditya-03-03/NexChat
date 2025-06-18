@@ -30,12 +30,17 @@ export function MessageSearch({ chatId, onMessageSelect, onClose, className }: M
 
     const searchMessages = async () => {
       setLoading(true)
+      console.log('Searching for:', query.trim(), 'in chat:', chatId)
       const result = await ChatService.searchMessages(chatId, query.trim())
+      
+      console.log('Search result:', result)
       
       if (result.success) {
         setResults(result.messages)
         setSelectedIndex(-1)
+        console.log('Found', result.messages.length, 'messages')
       } else {
+        console.error('Search failed:', result.error)
         setResults([])
       }
       setLoading(false)

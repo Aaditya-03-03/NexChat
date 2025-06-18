@@ -1,30 +1,27 @@
 "use client"
 
-import { useState } from "react"
-import { Bell, MessageSquare, Phone, Video, X, Save, Volume2, VolumeX } from "lucide-react"
+import { useState, useEffect } from "react"
+import { Bell, MessageSquare, Phone, Video, X, Save, Volume2, VolumeX, Play, AlertCircle, CheckCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { Slider } from "@/components/ui/slider"
+import { Badge } from "@/components/ui/badge"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { notificationService, NotificationSettings as NotificationSettingsType } from "@/lib/notification-service"
+import { demoService } from "@/lib/demo-service"
 import { toast } from "sonner"
 
 interface NotificationSettingsProps {
   onClose: () => void
   onUpdate: (enabled: boolean) => void
-  currentSettings?: {
-    enabled: boolean
-    messageNotifications: boolean
-    callNotifications: boolean
-    groupNotifications: boolean
-    soundEnabled: boolean
-    soundVolume: number
-  }
+  currentSettings?: NotificationSettingsType
 }
 
 export function NotificationSettings({ onClose, onUpdate, currentSettings }: NotificationSettingsProps) {
-  const [settings, setSettings] = useState({
+  const [settings, setSettings] = useState<NotificationSettingsType>({
     enabled: currentSettings?.enabled ?? true,
     messageNotifications: currentSettings?.messageNotifications ?? true,
     callNotifications: currentSettings?.callNotifications ?? true,
@@ -33,12 +30,36 @@ export function NotificationSettings({ onClose, onUpdate, currentSettings }: Not
     soundVolume: currentSettings?.soundVolume ?? 50,
   })
   const [isLoading, setIsLoading] = useState(false)
+  const [permissionStatus, setPermissionStatus] = useState<'granted' | 'denied' | 'default'>('default')
+  const [isTesting, setIsTesting] = useState(false)
+
+  useEffect(() => {
+    // Load current settings from the service
+    const currentServiceSettings = notificationService.getSettings()
+    setSettings(currentServiceSettings)
+    
+    // Check notification permission
+    if ('Notification' in window) {
+      setPermissionStatus(Notification.permission)
+    }
+  }, [])
 
   const handleSave = async () => {
     setIsLoading(true)
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      // Update the notification service settings
+      notificationService.updateSettings(settings)
+      
+      // Request permission if not already granted
+      if (settings.enabled && permissionStatus !== 'granted') {
+        const granted = await notificationService.requestPermission()
+        if (granted) {
+          setPermissionStatus('granted')
+          toast.success("Notification permission granted!")
+        } else {
+          toast.error("Notification permission denied. Please enable notifications in your browser settings.")
+        }
+      }
       
       onUpdate(settings.enabled)
       toast.success("Notification settings updated successfully")
@@ -50,7 +71,7 @@ export function NotificationSettings({ onClose, onUpdate, currentSettings }: Not
     }
   }
 
-  const handleToggle = (key: keyof typeof settings) => {
+  const handleToggle = (key: keyof NotificationSettingsType) => {
     if (key === 'soundVolume') return
     
     setSettings(prev => ({
@@ -64,6 +85,64 @@ export function NotificationSettings({ onClose, onUpdate, currentSettings }: Not
       ...prev,
       soundVolume: value[0]
     }))
+  }
+
+  const handleTestNotification = async () => {
+    setIsTesting(true)
+    try {
+      // Try Firebase notification first, fallback to demo
+      try {
+        await notificationService.testNotification()
+        toast.success("Test notification sent!")
+      } catch (error) {
+        console.log('Firebase notification failed, using demo mode')
+        await demoService.triggerDemoNotification()
+        toast.success("Demo notification sent!")
+      }
+    } catch (error) {
+      toast.error("Failed to send test notification")
+    } finally {
+      setIsTesting(false)
+    }
+  }
+
+  const handleTestSound = async () => {
+    try {
+      await notificationService.playNotificationSound()
+      toast.success("Test sound played!")
+    } catch (error) {
+      toast.error("Failed to play test sound")
+    }
+  }
+
+  const handleDemoNotification = async () => {
+    try {
+      await demoService.triggerDemoNotification()
+      toast.success("Demo notification sent!")
+    } catch (error) {
+      toast.error("Failed to send demo notification")
+    }
+  }
+
+  const getPermissionStatusBadge = () => {
+    switch (permissionStatus) {
+      case 'granted':
+        return <Badge variant="default" className="bg-green-500"><CheckCircle className="h-3 w-3 mr-1" />Granted</Badge>
+      case 'denied':
+        return <Badge variant="destructive"><AlertCircle className="h-3 w-3 mr-1" />Denied</Badge>
+      default:
+        return <Badge variant="secondary"><AlertCircle className="h-3 w-3 mr-1" />Not Set</Badge>
+    }
+  }
+
+  const getNotificationStatusText = () => {
+    if (!settings.enabled) {
+      return "Notifications are disabled"
+    }
+    if (permissionStatus !== 'granted') {
+      return "Browser permission required"
+    }
+    return "Notifications are active and working"
   }
 
   return (
@@ -82,6 +161,20 @@ export function NotificationSettings({ onClose, onUpdate, currentSettings }: Not
 
         {/* Content */}
         <div className="p-4 space-y-6">
+          {/* Permission Status */}
+          <Alert>
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span>Browser Permission</span>
+                {getPermissionStatusBadge()}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {getNotificationStatusText()}
+              </p>
+            </AlertDescription>
+          </Alert>
+
           {/* General Notifications */}
           <Card>
             <CardHeader className="pb-3">
@@ -211,7 +304,18 @@ export function NotificationSettings({ onClose, onUpdate, currentSettings }: Not
               </div>
               {settings.soundEnabled && settings.enabled && (
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium">Sound Volume</Label>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-medium">Sound Volume</Label>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleTestSound}
+                      disabled={!settings.soundEnabled}
+                    >
+                      <Play className="h-3 w-3 mr-1" />
+                      Test
+                    </Button>
+                  </div>
                   <Slider
                     value={[settings.soundVolume]}
                     onValueChange={handleVolumeChange}
@@ -224,6 +328,75 @@ export function NotificationSettings({ onClose, onUpdate, currentSettings }: Not
                   </p>
                 </div>
               )}
+            </CardContent>
+          </Card>
+
+          {/* Test Section */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Test Notifications</CardTitle>
+              <CardDescription>
+                Test your notification settings
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <Button
+                onClick={handleTestNotification}
+                disabled={isTesting || !settings.enabled || permissionStatus !== 'granted'}
+                className="w-full"
+                variant="outline"
+              >
+                {isTesting ? (
+                  <>
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent mr-2" />
+                    Sending...
+                  </>
+                ) : (
+                  <>
+                    <Bell className="h-4 w-4 mr-2" />
+                    Send Test Notification
+                  </>
+                )}
+              </Button>
+              
+              <div className="grid grid-cols-2 gap-2 mt-3">
+                <Button
+                  onClick={() => notificationService.triggerTestMessageNotification()}
+                  disabled={!settings.enabled || permissionStatus !== 'granted'}
+                  size="sm"
+                  variant="outline"
+                >
+                  Test Message
+                </Button>
+                <Button
+                  onClick={() => notificationService.triggerTestGroupNotification()}
+                  disabled={!settings.enabled || permissionStatus !== 'granted'}
+                  size="sm"
+                  variant="outline"
+                >
+                  Test Group
+                </Button>
+                <Button
+                  onClick={() => notificationService.triggerTestCallNotification()}
+                  disabled={!settings.enabled || permissionStatus !== 'granted'}
+                  size="sm"
+                  variant="outline"
+                >
+                  Test Call
+                </Button>
+                <Button
+                  onClick={() => notificationService.triggerTestMentionNotification()}
+                  disabled={!settings.enabled || permissionStatus !== 'granted'}
+                  size="sm"
+                  variant="outline"
+                >
+                  Test Mention
+                </Button>
+              </div>
+              
+              <p className="text-xs text-muted-foreground text-center mt-2">
+                These will send test notifications to verify your settings
+              </p>
             </CardContent>
           </Card>
 

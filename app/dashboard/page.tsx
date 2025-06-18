@@ -7,6 +7,7 @@ import { ChatWindow } from "@/components/chat-window"
 import { UserProfile } from "@/components/user-profile"
 import { ProtectedRoute } from "@/components/protected-route"
 import { useAuthContext } from "@/components/auth-provider"
+import { useLanguage } from "@/components/language-provider"
 import { ChatService, Chat, Message } from "@/lib/chat-service"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
@@ -22,6 +23,8 @@ import { Separator } from "@/components/ui/separator"
 import { ProfileEditor } from "@/components/profile-editor"
 import { PrivacySettings } from "@/components/privacy-settings"
 import { NotificationSettings } from "@/components/notification-settings"
+import { LanguageSettings } from "@/components/language-settings"
+import { HelpSettings } from "@/components/help-settings"
 import { 
   MessageSquare, 
   Users, 
@@ -42,7 +45,11 @@ import {
   EyeOff,
   Clock,
   Loader2,
-  Trash2
+  Trash2,
+  User,
+  Edit2,
+  Languages,
+  Database
 } from "lucide-react"
 import { toast } from "sonner"
 import { doc, getDoc, getDocs, collection } from "firebase/firestore"
@@ -68,6 +75,7 @@ function useDebounce<T>(value: T, delay: number): T {
 
 export default function DashboardPage() {
   const { user, userProfile } = useAuthContext()
+  const { t } = useLanguage()
   const [chats, setChats] = useState<Chat[]>([])
   const [selectedChat, setSelectedChat] = useState<Chat | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
@@ -91,6 +99,8 @@ export default function DashboardPage() {
   const [showProfileEditor, setShowProfileEditor] = useState(false)
   const [showPrivacySettings, setShowPrivacySettings] = useState(false)
   const [showNotificationSettings, setShowNotificationSettings] = useState(false)
+  const [showLanguageSettings, setShowLanguageSettings] = useState(false)
+  const [showHelpSettings, setShowHelpSettings] = useState(false)
   const [showArchiveDialog, setShowArchiveDialog] = useState(false)
   const [showClearChatsDialog, setShowClearChatsDialog] = useState(false)
   const [showDeleteChatDialog, setShowDeleteChatDialog] = useState(false)
@@ -157,10 +167,10 @@ export default function DashboardPage() {
       console.log('Messages received for chat:', selectedChat.id, 'count:', chatMessages.length)
       setMessages(chatMessages)
       setChatLoading(false)
-    })
+    }, user?.uid)
 
     return unsubscribe
-  }, [selectedChat])
+  }, [selectedChat, user])
 
   // Fetch all users for contacts
   useEffect(() => {
@@ -230,6 +240,96 @@ export default function DashboardPage() {
     console.log('User auth debug - user:', !!user, 'userProfile:', !!userProfile, 'user?.uid:', user?.uid)
   }, [user, userProfile])
 
+  // Debug effect for database connection
+  useEffect(() => {
+    if (user) {
+      console.log('Testing database connection...');
+      // Test a simple database operation
+      const testConnection = async () => {
+        try {
+          const result = await ChatService.getAllUsers(user.uid);
+          console.log('Database connection test result:', result);
+        } catch (error) {
+          console.error('Database connection test failed:', error);
+        }
+      };
+      testConnection();
+    }
+  }, [user]);
+
+  // Test function for debugging
+  const testDatabaseConnection = async () => {
+    console.log('=== COMPREHENSIVE DEBUG TEST ===');
+    console.log('1. User Authentication Check:');
+    console.log('   - User object:', !!user);
+    console.log('   - User UID:', user?.uid);
+    console.log('   - User email:', user?.email);
+    console.log('   - UserProfile:', !!userProfile);
+    console.log('   - UserProfile data:', userProfile);
+    
+    if (!user) {
+      console.error('❌ No authenticated user found');
+      toast.error('No authenticated user found');
+      return;
+    }
+    
+    console.log('2. Firebase Services Check:');
+    try {
+      const { db, auth } = await import('@/lib/firebase');
+      console.log('   - Database object:', !!db);
+      console.log('   - Auth object:', !!auth);
+      console.log('   - Current auth user:', auth.currentUser);
+    } catch (error) {
+      console.error('❌ Firebase services not available:', error);
+      toast.error('Firebase services not available');
+      return;
+    }
+    
+    console.log('3. Database Read Test:');
+    try {
+      const result = await ChatService.getAllUsers(user.uid);
+      console.log('   - getAllUsers result:', result);
+      if (result.success) {
+        console.log('   - Found users:', result.users?.length || 0);
+      } else {
+        console.error('❌ getAllUsers failed:', result.error);
+      }
+    } catch (error) {
+      console.error('❌ Database read test failed:', error);
+      toast.error('Database read test failed');
+      return;
+    }
+    
+    console.log('4. Chat Creation Test:');
+    try {
+      // Try to create a test chat with the first available user
+      const usersResult = await ChatService.getAllUsers(user.uid);
+      if (usersResult.success && usersResult.users && usersResult.users.length > 0) {
+        const testUser = usersResult.users[0];
+        console.log('   - Testing with user:', testUser);
+        
+        const chatResult = await ChatService.createDirectChat(user.uid, testUser.id);
+        console.log('   - createDirectChat result:', chatResult);
+        
+        if (chatResult.success) {
+          console.log('✅ Chat creation successful!');
+          toast.success('Chat creation test successful!');
+        } else {
+          console.error('❌ Chat creation failed:', chatResult.error);
+          toast.error(`Chat creation failed: ${chatResult.error}`);
+        }
+      } else {
+        console.log('   - No other users found for testing');
+        toast.info('No other users found for testing');
+      }
+    } catch (error) {
+      console.error('❌ Chat creation test failed:', error);
+      toast.error('Chat creation test failed');
+    }
+    
+    console.log('=== END DEBUG TEST ===');
+  };
+
   // Update user status when component mounts/unmounts
   useEffect(() => {
     if (!user) return
@@ -271,34 +371,52 @@ export default function DashboardPage() {
   }
 
   const handleCreateDirectChat = async (otherUserId: string) => {
-    if (!user) return
+    console.log('Dashboard: handleCreateDirectChat called with otherUserId:', otherUserId, 'current user:', user?.uid);
+    if (!user) {
+      console.error('Dashboard: No user found, cannot create chat');
+      return;
+    }
 
     try {
+      console.log('Dashboard: Calling ChatService.createDirectChat...');
       const result = await ChatService.createDirectChat(user.uid, otherUserId)
+      console.log('Dashboard: ChatService.createDirectChat result:', result);
       if (result.success) {
         // Chat will be automatically added to the list via subscription
         setActiveTab("chats")
         toast.success("Chat created successfully")
+        console.log('Dashboard: Chat created successfully, switching to chats tab');
       } else {
+        console.error('Dashboard: Failed to create chat:', result.error);
         toast.error(result.error || "Failed to create chat")
       }
     } catch (error) {
+      console.error('Dashboard: Exception in handleCreateDirectChat:', error);
       toast.error("Failed to create chat")
     }
   }
 
   const handleCreateGroupChat = async (name: string, participants: string[]) => {
-    if (!user) return
+    console.log('Dashboard: handleCreateGroupChat called with name:', name, 'participants:', participants, 'current user:', user?.uid);
+    if (!user) {
+      console.error('Dashboard: No user found, cannot create group');
+      return;
+    }
 
     try {
+      console.log('Dashboard: Calling ChatService.createGroupChat...');
       const result = await ChatService.createGroupChat(name, participants, user.uid)
+      console.log('Dashboard: ChatService.createGroupChat result:', result);
       if (result.success) {
         setActiveTab("chats")
         toast.success("Group created successfully")
+        console.log('Dashboard: Group created successfully, switching to chats tab');
       } else {
+        console.error('Dashboard: Failed to create group:', result.error);
         toast.error(result.error || "Failed to create group")
       }
     } catch (error) {
+      console.error('Dashboard: Exception in handleCreateGroupChat:', error);
       toast.error("Failed to create group")
     }
   }
@@ -332,6 +450,14 @@ export default function DashboardPage() {
 
   const handleNotificationSettings = () => {
     setShowNotificationSettings(true)
+  }
+
+  const handleLanguageSettings = () => {
+    setShowLanguageSettings(true)
+  }
+
+  const handleHelpSettings = () => {
+    setShowHelpSettings(true)
   }
 
   const handleArchiveChats = () => {
@@ -396,7 +522,7 @@ export default function DashboardPage() {
   )
 
   // Memoized filtered chats
-  const filteredChats = useMemo(() => 
+  const filteredChats: Chat[] = useMemo(() => 
     chats.filter(chat => {
       const searchLower = debouncedChatSearchQuery.toLowerCase()
       
@@ -495,8 +621,8 @@ export default function DashboardPage() {
         {isMobileView ? (
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="chats" className="text-xs">Chats</TabsTrigger>
-              <TabsTrigger value="contacts" className="text-xs">Contacts</TabsTrigger>
+              <TabsTrigger value="chats" className="text-xs">{t('nav.chats')}</TabsTrigger>
+              <TabsTrigger value="contacts" className="text-xs">{t('nav.contacts')}</TabsTrigger>
             </TabsList>
             
             {/* Chats Tab */}
@@ -506,7 +632,7 @@ export default function DashboardPage() {
                   {/* Header with Search */}
                   <div className="p-4 border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
                     <div className="flex items-center justify-between mb-3">
-                      <h2 className="text-lg font-semibold">Messages</h2>
+                      <h2 className="text-lg font-semibold">{t('nav.chats')}</h2>
                       <div className="flex gap-2">
                         <Button
                           variant="ghost"
@@ -521,7 +647,7 @@ export default function DashboardPage() {
                     <div className="relative">
                       <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       <Input
-                        placeholder="Search conversations..."
+                        placeholder={t('chat.search')}
                         value={chatSearchQuery}
                         onChange={(e) => setChatSearchQuery(e.target.value)}
                         className="pl-10"
@@ -539,7 +665,7 @@ export default function DashboardPage() {
                         </div>
                       )}
                       {filteredChats.length > 0 ? (
-                        filteredChats.map((chat) => (
+                        filteredChats.map((chat: Chat) => (
                           <div
                             key={chat.id}
                             className={cn(
@@ -611,16 +737,16 @@ export default function DashboardPage() {
                           <div className="w-24 h-24 mx-auto bg-gradient-to-br from-primary/20 to-primary/10 rounded-full flex items-center justify-center mb-6">
                             <MessageSquare className="h-12 w-12 text-primary" />
                           </div>
-                          <h3 className="text-2xl font-semibold mb-3">No conversations yet</h3>
+                          <h3 className="text-2xl font-semibold mb-3">{t('chat.noConversations')}</h3>
                           <p className="text-base text-muted-foreground mb-6">
-                            Start chatting with friends and family
+                            {t('chat.startChat')}
                           </p>
                           <Button 
                             onClick={() => setActiveTab("contacts")}
                             className="bg-primary hover:bg-primary/90 text-base px-6 py-3"
                           >
                             <Plus className="h-5 w-5 mr-2" />
-                            Start New Chat
+                            {t('chat.new')}
                           </Button>
                         </div>
                       )}
@@ -634,7 +760,7 @@ export default function DashboardPage() {
                     messages={messages}
                     onSendMessage={handleSendMessage}
                     onShowProfile={() => setShowProfile(true)}
-                    onBackToChatList={isMobileView ? handleBackToChatList : undefined}
+                    onBackToChatList={() => setSelectedChat(null)}
                     onDeleteChat={handleDeleteChat}
                     currentUser={userProfile}
                     chatDisplayName={getChatDisplayName(selectedChat)}
@@ -649,7 +775,7 @@ export default function DashboardPage() {
                 {/* Header */}
                 <div className="p-4 border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
                   <div className="flex items-center justify-between mb-3">
-                    <h2 className="text-lg font-semibold">Contacts</h2>
+                    <h2 className="text-lg font-semibold">{t('nav.contacts')}</h2>
                     <Button
                       variant="ghost"
                       size="icon"
@@ -662,7 +788,7 @@ export default function DashboardPage() {
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
-                      placeholder="Search contacts..."
+                      placeholder={t('chat.search')}
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       className="pl-10"
@@ -745,6 +871,28 @@ export default function DashboardPage() {
                         <Bell className="h-5 w-5 text-muted-foreground" />
                         <span className="font-medium">Notifications</span>
                       </div>
+                      <div className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors" onClick={handleLanguageSettings}>
+                        <Languages className="h-5 w-5 text-muted-foreground" />
+                        <span className="font-medium">App Language</span>
+                      </div>
+                      <div className="space-y-2">
+                        <Button
+                          variant="ghost"
+                          className="w-full justify-start"
+                          onClick={handleHelpSettings}
+                        >
+                          <HelpCircle className="h-4 w-4 mr-3" />
+                          Help & Support
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          className="w-full justify-start"
+                          onClick={testDatabaseConnection}
+                        >
+                          <Database className="h-4 w-4 mr-3" />
+                          Test Database
+                        </Button>
+                      </div>
                     </CardContent>
                   </Card>
 
@@ -773,22 +921,22 @@ export default function DashboardPage() {
           </Tabs>
         ) : (
           /* Desktop: Show tabs with content */
-          <div className="w-full flex">
-            {/* Left Sidebar with Tabs */}
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-80 border-r border-border/40 flex flex-col">
+          <div className="w-full flex h-full">
+            {/* Left Sidebar with Tabs - Always visible on desktop */}
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-96 border-r border-border/40 flex flex-col h-full">
               <div className="p-4 border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
                 <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="chats">Chats</TabsTrigger>
-                  <TabsTrigger value="contacts">Contacts</TabsTrigger>
+                  <TabsTrigger value="chats">{t('nav.chats')}</TabsTrigger>
+                  <TabsTrigger value="contacts">{t('nav.contacts')}</TabsTrigger>
                 </TabsList>
               </div>
-              <div className="flex-1">
+              <div className="flex-1 h-full">
                 <TabsContent value="chats" className="mt-0 h-full">
                   <div className="h-full flex flex-col">
                     {/* Header with Search */}
                     <div className="p-4 border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
                       <div className="flex items-center justify-between mb-3">
-                        <h2 className="text-lg font-semibold">Messages</h2>
+                        <h2 className="text-lg font-semibold">{t('nav.chats')}</h2>
                         <div className="flex gap-2">
                           <Button
                             variant="ghost"
@@ -803,7 +951,7 @@ export default function DashboardPage() {
                       <div className="relative">
                         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                         <Input
-                          placeholder="Search conversations..."
+                          placeholder={t('chat.search')}
                           value={chatSearchQuery}
                           onChange={(e) => setChatSearchQuery(e.target.value)}
                           className="pl-10"
@@ -812,7 +960,7 @@ export default function DashboardPage() {
                     </div>
                     
                     {/* Chat List */}
-                    <ScrollArea className="flex-1">
+                    <ScrollArea className="flex-1 h-full">
                       <div className="space-y-2 p-3">
                         {userNamesLoading && chats.length > 0 && (
                           <div className="flex items-center justify-center py-6">
@@ -821,7 +969,7 @@ export default function DashboardPage() {
                           </div>
                         )}
                         {filteredChats.length > 0 ? (
-                          filteredChats.map((chat) => (
+                          filteredChats.map((chat: Chat) => (
                             <div
                               key={chat.id}
                               className={cn(
@@ -916,7 +1064,7 @@ export default function DashboardPage() {
                     {/* Header */}
                     <div className="p-4 border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
                       <div className="flex items-center justify-between mb-3">
-                        <h2 className="text-lg font-semibold">Contacts</h2>
+                        <h2 className="text-lg font-semibold">{t('nav.contacts')}</h2>
                         <Button
                           variant="ghost"
                           size="icon"
@@ -929,7 +1077,7 @@ export default function DashboardPage() {
                       <div className="relative">
                         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                         <Input
-                          placeholder="Search contacts..."
+                          placeholder={t('chat.search')}
                           value={searchQuery}
                           onChange={(e) => setSearchQuery(e.target.value)}
                           className="pl-10"
@@ -959,7 +1107,7 @@ export default function DashboardPage() {
                     </Dialog>
                     
                     {/* Contacts List */}
-                    <ScrollArea className="flex-1">
+                    <ScrollArea className="flex-1 h-full">
                       <div className="p-4 space-y-3">
                         {filteredUsers.map((contact) => (
                           <div
@@ -989,32 +1137,54 @@ export default function DashboardPage() {
                 
                 <TabsContent value="settings" className="mt-0 h-full">
                   <ScrollArea className="h-full">
-                    <div className="p-4 space-y-4">
-                      {/* Profile Section */}
+                    <div className="p-4 space-y-6">
+                      {/* Profile Card */}
                       <Card className="border-border/50">
                         <CardHeader className="pb-3">
                           <CardTitle className="text-lg flex items-center gap-2">
-                            <UserPlus className="h-5 w-5 text-primary" />
+                            <User className="h-5 w-5 text-primary" />
                             Profile Settings
                           </CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-2">
                           <div className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors" onClick={handleEditProfile}>
-                            <UserPlus className="h-5 w-5 text-muted-foreground" />
+                            <Edit2 className="h-5 w-5 text-muted-foreground" />
                             <span className="font-medium">Edit Profile</span>
                           </div>
                           <div className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors" onClick={handlePrivacySettings}>
                             <Shield className="h-5 w-5 text-muted-foreground" />
-                            <span className="font-medium">Privacy & Security</span>
+                            <span className="font-medium">Privacy Settings</span>
                           </div>
                           <div className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors" onClick={handleNotificationSettings}>
                             <Bell className="h-5 w-5 text-muted-foreground" />
-                            <span className="font-medium">Notifications</span>
+                            <span className="font-medium">Notification Settings</span>
+                          </div>
+                          <div className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors" onClick={handleLanguageSettings}>
+                            <Languages className="h-5 w-5 text-muted-foreground" />
+                            <span className="font-medium">App Language</span>
+                          </div>
+                          <div className="space-y-2">
+                            <Button
+                              variant="ghost"
+                              className="w-full justify-start"
+                              onClick={handleHelpSettings}
+                            >
+                              <HelpCircle className="h-4 w-4 mr-3" />
+                              Help & Support
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              className="w-full justify-start"
+                              onClick={testDatabaseConnection}
+                            >
+                              <Database className="h-4 w-4 mr-3" />
+                              Test Database
+                            </Button>
                           </div>
                         </CardContent>
                       </Card>
 
-                      {/* Chat Settings */}
+                      {/* Chat Settings Card */}
                       <Card className="border-border/50">
                         <CardHeader className="pb-3">
                           <CardTitle className="text-lg flex items-center gap-2">
@@ -1039,8 +1209,8 @@ export default function DashboardPage() {
               </div>
             </Tabs>
             
-            {/* Right Side - Chat Window or Welcome */}
-            <div className="flex-1 relative">
+            {/* Right Side - Chat Window or Welcome - Takes remaining space */}
+            <div className="flex-1 relative h-full">
               {selectedChat ? (
                 chatLoading ? (
                   <div className="h-full flex items-center justify-center">
@@ -1055,7 +1225,7 @@ export default function DashboardPage() {
                     messages={messages}
                     onSendMessage={handleSendMessage}
                     onShowProfile={() => setShowProfile(true)}
-                    onBackToChatList={isMobileView ? handleBackToChatList : undefined}
+                    onBackToChatList={undefined}
                     onDeleteChat={handleDeleteChat}
                     currentUser={userProfile}
                     chatDisplayName={getChatDisplayName(selectedChat)}
@@ -1069,9 +1239,9 @@ export default function DashboardPage() {
                       <MessageSquare className="h-12 w-12 text-primary" />
                     </div>
                     <div className="space-y-2">
-                      <h2 className="text-3xl font-bold">Welcome to Nex Chat</h2>
+                      <h2 className="text-3xl font-bold">{t('welcome.title')}</h2>
                       <p className="text-muted-foreground max-w-md text-lg">
-                        Select a conversation from the sidebar to start messaging with friends and family.
+                        {t('welcome.subtitle')}
                       </p>
                     </div>
                     <Button 
@@ -1080,21 +1250,23 @@ export default function DashboardPage() {
                       className="bg-primary hover:bg-primary/90"
                     >
                       <Plus className="h-5 w-5 mr-2" />
-                      Start New Conversation
+                      {t('chat.new')}
                     </Button>
                   </div>
                 </div>
               )}
               
-              {/* Floating + Button for New Chat - Always visible */}
-              <Button
-                onClick={() => setActiveTab("contacts")}
-                size="icon"
-                className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 h-12 w-12 sm:h-14 sm:w-14 rounded-full shadow-lg hover:shadow-xl transition-shadow z-50 bg-primary hover:bg-primary/90"
-              >
-                <Plus className="h-5 w-5 sm:h-6 sm:w-6" />
-                <span className="sr-only">Start new conversation</span>
-              </Button>
+              {/* Floating + Button for New Chat - Only visible when no chat is selected */}
+              {!selectedChat && (
+                <Button
+                  onClick={() => setActiveTab("contacts")}
+                  size="icon"
+                  className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 h-12 w-12 sm:h-14 sm:w-14 rounded-full shadow-lg hover:shadow-xl transition-shadow z-50 bg-primary hover:bg-primary/90"
+                >
+                  <Plus className="h-5 w-5 sm:h-6 sm:w-6" />
+                  <span className="sr-only">Start new conversation</span>
+                </Button>
+              )}
             </div>
           </div>
         )}
@@ -1151,6 +1323,22 @@ export default function DashboardPage() {
             soundEnabled: true,
             soundVolume: 50,
           }}
+        />
+      )}
+
+      {showLanguageSettings && (
+        <LanguageSettings
+          onClose={() => setShowLanguageSettings(false)}
+          onUpdate={(settings) => {
+            toast.success("Language settings updated successfully")
+            setShowLanguageSettings(false)
+          }}
+        />
+      )}
+
+      {showHelpSettings && (
+        <HelpSettings
+          onClose={() => setShowHelpSettings(false)}
         />
       )}
 

@@ -17,6 +17,7 @@ import {
   getDoc,
 } from 'firebase/firestore';
 import { db } from './firebase';
+import { notificationService } from './notification-service';
 
 export interface Message {
   id: string;
@@ -78,7 +79,7 @@ export interface UserStatus {
 
 export class ChatService {
   // Get real-time messages for a chat
-  static subscribeToMessages(chatId: string, callback: (messages: Message[]) => void) {
+  static subscribeToMessages(chatId: string, callback: (messages: Message[]) => void, currentUserId?: string) {
     console.log('ChatService: Subscribing to messages for chat:', chatId)
     const messagesRef = collection(db, 'chats', chatId, 'messages');
     const q = query(messagesRef, orderBy('timestamp', 'desc'), limit(50));
@@ -89,11 +90,56 @@ export class ChatService {
       snapshot.forEach((doc) => {
         messages.push({ id: doc.id, ...doc.data() } as Message);
       });
+      
+      // Check for new messages and trigger notifications
+      if (currentUserId) {
+        const newMessages = messages.filter(msg => 
+          msg.userId !== currentUserId && 
+          msg.timestamp && 
+          new Date(msg.timestamp.toDate ? msg.timestamp.toDate() : msg.timestamp).getTime() > Date.now() - 10000 // Messages from last 10 seconds
+        );
+        
+        newMessages.forEach(message => {
+          this.handleNewMessageNotification(message, chatId);
+        });
+      }
+      
       console.log('ChatService: Calling callback with messages:', messages.length)
       callback(messages.reverse());
     }, (error) => {
       console.error('ChatService: Error in message subscription for chat:', chatId, error)
     });
+  }
+
+  // Handle notifications for new messages
+  private static async handleNewMessageNotification(message: Message, chatId: string) {
+    try {
+      // Get chat details to determine if it's a group chat
+      const chatDoc = await getDoc(doc(db, 'chats', chatId));
+      if (!chatDoc.exists()) return;
+      
+      const chatData = chatDoc.data();
+      const isGroupChat = chatData.type === 'group';
+      
+      // Check if user is mentioned in group messages
+      const isMentioned = isGroupChat && message.content.includes('@');
+      
+      if (isMentioned) {
+        await notificationService.notifyMention(
+          message.userDisplayName,
+          message.content,
+          chatData.name || 'Group'
+        );
+      } else {
+        await notificationService.notifyNewMessage(
+          message.userDisplayName,
+          message.content,
+          isGroupChat
+        );
+      }
+    } catch (error) {
+      console.warn('Failed to handle message notification:', error);
+    }
   }
 
   // Get real-time chats for a user
@@ -150,6 +196,7 @@ export class ChatService {
 
   // Create a direct chat between two users
   static async createDirectChat(userId1: string, userId2: string) {
+    console.log('ChatService: Creating direct chat between users:', userId1, userId2);
     try {
       // Check if chat already exists
       const chatsRef = collection(db, 'chats');
@@ -159,17 +206,22 @@ export class ChatService {
         where('participants', 'array-contains', userId1)
       );
       
+      console.log('ChatService: Checking for existing chat...');
       const snapshot = await getDocs(q);
+      console.log('ChatService: Found', snapshot.docs.length, 'existing chats for user', userId1);
+      
       const existingChat = snapshot.docs.find(doc => {
         const data = doc.data();
         return data.participants.includes(userId2);
       });
       
       if (existingChat) {
+        console.log('ChatService: Found existing chat:', existingChat.id);
         return { success: true, chatId: existingChat.id };
       }
       
       // Create new chat
+      console.log('ChatService: Creating new direct chat...');
       const chatData: Omit<Chat, 'id'> = {
         type: 'direct',
         participants: [userId1, userId2],
@@ -177,15 +229,19 @@ export class ChatService {
         updatedAt: serverTimestamp() as Timestamp,
       };
       
+      console.log('ChatService: Chat data to create:', chatData);
       const docRef = await addDoc(chatsRef, chatData);
+      console.log('ChatService: Successfully created chat with ID:', docRef.id);
       return { success: true, chatId: docRef.id };
     } catch (error: any) {
+      console.error('ChatService: Error creating direct chat:', error);
       return { success: false, error: error.message };
     }
   }
 
   // Create a group chat
   static async createGroupChat(name: string, participants: string[], creatorId: string) {
+    console.log('ChatService: Creating group chat:', { name, participants, creatorId });
     try {
       const chatsRef = collection(db, 'chats');
       const chatData: Omit<Chat, 'id'> = {
@@ -197,9 +253,12 @@ export class ChatService {
         updatedAt: serverTimestamp() as Timestamp,
       };
       
+      console.log('ChatService: Group chat data to create:', chatData);
       const docRef = await addDoc(chatsRef, chatData);
+      console.log('ChatService: Successfully created group chat with ID:', docRef.id);
       return { success: true, chatId: docRef.id };
     } catch (error: any) {
+      console.error('ChatService: Error creating group chat:', error);
       return { success: false, error: error.message };
     }
   }
@@ -378,26 +437,41 @@ export class ChatService {
   }
 
   // Search messages in chat
-  static async searchMessages(chatId: string, query: string) {
+  static async searchMessages(chatId: string, searchQuery: string) {
     try {
       const messagesRef = collection(db, 'chats', chatId, 'messages');
+      
+      // Get all messages and filter client-side for better search results
       const q = query(
         messagesRef,
-        where('content', '>=', query),
-        where('content', '<=', query + '\uf8ff'),
-        orderBy('content'),
         orderBy('timestamp', 'desc'),
-        limit(20)
+        limit(100) // Limit to recent messages for performance
       );
       
       const snapshot = await getDocs(q);
       const messages: Message[] = [];
+      const searchTerm = searchQuery.toLowerCase().trim();
+      
       snapshot.forEach((doc) => {
-        messages.push({ id: doc.id, ...doc.data() } as Message);
+        const messageData = { id: doc.id, ...doc.data() } as Message;
+        
+        // Filter messages that contain the search query in content or userDisplayName
+        if (messageData.content.toLowerCase().includes(searchTerm) ||
+            messageData.userDisplayName.toLowerCase().includes(searchTerm)) {
+          messages.push(messageData);
+        }
       });
       
-      return { success: true, messages };
+      // Sort by timestamp (newest first) and limit results
+      messages.sort((a, b) => {
+        const timeA = a.timestamp.toDate ? a.timestamp.toDate().getTime() : new Date(a.timestamp).getTime();
+        const timeB = b.timestamp.toDate ? b.timestamp.toDate().getTime() : new Date(b.timestamp).getTime();
+        return timeB - timeA;
+      });
+      
+      return { success: true, messages: messages.slice(0, 20) };
     } catch (error: any) {
+      console.error('Search error:', error);
       return { success: false, error: error.message };
     }
   }
@@ -561,6 +635,79 @@ export class ChatService {
       
       return { success: true };
     } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  // Delete user account and all associated data
+  static async deleteUserAccount(userId: string) {
+    try {
+      // Delete user profile
+      const userRef = doc(db, 'users', userId);
+      await deleteDoc(userRef);
+
+      // Delete user status
+      const statusRef = doc(db, 'userStatus', userId);
+      await deleteDoc(statusRef);
+
+      // Get all chats where user is a participant
+      const chatsRef = collection(db, 'chats');
+      const userChatsQuery = query(
+        chatsRef,
+        where('participants', 'array-contains', userId)
+      );
+      const userChatsSnapshot = await getDocs(userChatsQuery);
+
+      // Process each chat
+      for (const chatDoc of userChatsSnapshot.docs) {
+        const chatData = chatDoc.data() as Chat;
+        
+        if (chatData.type === 'direct') {
+          // For direct chats, remove user from participants
+          const updatedParticipants = chatData.participants.filter(p => p !== userId);
+          
+          if (updatedParticipants.length === 0) {
+            // If no participants left, delete the entire chat and its messages
+            const messagesRef = collection(db, 'chats', chatDoc.id, 'messages');
+            const messagesSnapshot = await getDocs(messagesRef);
+            
+            // Delete all messages
+            const deletePromises = messagesSnapshot.docs.map(doc => deleteDoc(doc.ref));
+            await Promise.all(deletePromises);
+            
+            // Delete the chat
+            await deleteDoc(chatDoc.ref);
+          } else {
+            // Update participants list
+            await updateDoc(chatDoc.ref, {
+              participants: updatedParticipants,
+              updatedAt: serverTimestamp(),
+            });
+          }
+        } else {
+          // For group chats, remove user from participants and admins
+          await updateDoc(chatDoc.ref, {
+            participants: arrayRemove(userId),
+            admins: arrayRemove(userId),
+            updatedAt: serverTimestamp(),
+          });
+        }
+      }
+
+      // Delete user chat preferences (if they exist)
+      const userChatsRef = collection(db, 'userChats');
+      const userChatPrefsQuery = query(
+        userChatsRef,
+        where('userId', '==', userId)
+      );
+      const userChatPrefsSnapshot = await getDocs(userChatPrefsQuery);
+      
+      const deletePrefsPromises = userChatPrefsSnapshot.docs.map(doc => deleteDoc(doc.ref));
+      await Promise.all(deletePrefsPromises);
+
+      return { success: true };
+    } catch (error: any) {
+      console.error('Error deleting user account:', error);
       return { success: false, error: error.message };
     }
   }

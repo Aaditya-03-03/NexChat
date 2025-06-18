@@ -1,9 +1,22 @@
+"use client"
+
+import { useState } from "react"
+import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { MessageSquare } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ModeToggle } from "@/components/mode-toggle"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useAuthContext } from "@/components/auth-provider"
+import { useLanguage } from "@/components/language-provider"
+import { toast } from "sonner"
 
 export default function HomePage() {
+  const { t } = useLanguage()
+  
   return (
     <div className="min-h-screen flex flex-col">
       <header className="sticky top-0 left-0 right-0 z-50 flex h-14 md:h-16 items-center justify-between px-3 md:px-4 backdrop-blur-md bg-background/80 border-b border-border/40 mobile-safe-area">
@@ -15,10 +28,10 @@ export default function HomePage() {
         </div>
         <div className="flex items-center gap-1 md:gap-2">
           <Button asChild variant="ghost" size="sm" className="h-8 md:h-10 rounded-xl text-xs md:text-sm">
-            <Link href="/sign-in">Sign In</Link>
+            <Link href="/sign-in">{t('auth.signIn')}</Link>
           </Button>
           <Button asChild size="sm" className="bg-primary hover:bg-primary/90 text-white rounded-xl h-8 md:h-10 text-xs md:text-sm">
-            <Link href="/sign-up">Sign Up</Link>
+            <Link href="/sign-up">{t('auth.signUp')}</Link>
           </Button>
           <ModeToggle />
         </div>
@@ -32,17 +45,16 @@ export default function HomePage() {
           <div className="absolute bottom-1/4 right-1/4 w-32 h-32 md:w-64 md:h-64 bg-primary/20 rounded-full filter blur-3xl opacity-50 animate-pulse" />
 
           <div className="max-w-5xl mx-auto text-center relative z-10">
-            <h1 className="text-3xl md:text-5xl lg:text-6xl font-bold mb-4 md:mb-6 animate-fade-in">Modern Messaging for Everyone</h1>
+            <h1 className="text-3xl md:text-5xl lg:text-6xl font-bold mb-4 md:mb-6 animate-fade-in">{t('welcome.title')}</h1>
             <p className="text-lg md:text-xl lg:text-2xl text-muted-foreground mb-6 md:mb-8 max-w-3xl mx-auto animate-fade-in px-2">
-              Nex Chat brings a fresh, futuristic approach to messaging with a beautiful glassmorphism UI and powerful
-              features.
+              {t('welcome.subtitle')}
             </p>
             <div className="flex flex-col sm:flex-row gap-3 md:gap-4 justify-center animate-fade-in px-2">
               <Button asChild size="lg" className="bg-primary hover:bg-primary/90 text-white rounded-xl px-6 md:px-8 h-11 md:h-12">
-                <Link href="/sign-up">Get Started</Link>
+                <Link href="/sign-up">{t('welcome.getStarted')}</Link>
               </Button>
               <Button asChild size="lg" variant="outline" className="glass-button rounded-xl px-6 md:px-8 h-11 md:h-12">
-                <Link href="/dashboard">Try Demo</Link>
+                <Link href="/dashboard">{t('welcome.tryDemo')}</Link>
               </Button>
             </div>
           </div>
@@ -51,13 +63,13 @@ export default function HomePage() {
         {/* Features section */}
         <section className="py-12 md:py-16 px-3 md:px-4 bg-muted/30 backdrop-blur-sm">
           <div className="max-w-5xl mx-auto">
-            <h2 className="text-2xl md:text-3xl font-bold text-center mb-8 md:mb-12">Key Features</h2>
+            <h2 className="text-2xl md:text-3xl font-bold text-center mb-8 md:mb-12">{t('welcome.features')}</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
               <div className="glass-card p-4 md:p-6 animate-fade-in">
                 <div className="h-10 w-10 md:h-12 md:w-12 rounded-full bg-primary/20 flex items-center justify-center mb-3 md:mb-4">
                   <MessageSquare className="h-5 w-5 md:h-6 md:w-6 text-primary" />
                 </div>
-                <h3 className="text-lg md:text-xl font-bold mb-2">Real-time Messaging</h3>
+                <h3 className="text-lg md:text-xl font-bold mb-2">{t('welcome.realTimeMessaging')}</h3>
                 <p className="text-sm md:text-base text-muted-foreground">
                   Send and receive messages instantly with read receipts and typing indicators.
                 </p>
@@ -73,7 +85,7 @@ export default function HomePage() {
                     />
                   </svg>
                 </div>
-                <h3 className="text-lg md:text-xl font-bold mb-2">Group Chats</h3>
+                <h3 className="text-lg md:text-xl font-bold mb-2">{t('welcome.groupChats')}</h3>
                 <p className="text-sm md:text-base text-muted-foreground">
                   Create and manage group conversations with friends, family, or colleagues.
                 </p>
@@ -89,7 +101,7 @@ export default function HomePage() {
                     />
                   </svg>
                 </div>
-                <h3 className="text-lg md:text-xl font-bold mb-2">Privacy First</h3>
+                <h3 className="text-lg md:text-xl font-bold mb-2">{t('welcome.privacyFirst')}</h3>
                 <p className="text-sm md:text-base text-muted-foreground">
                   Control who sees your information with customizable privacy settings.
                 </p>

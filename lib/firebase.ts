@@ -32,19 +32,50 @@ if (process.env.NODE_ENV === 'development') {
   });
 }
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
+// Initialize Firebase with error handling
+let app;
+try {
+  app = initializeApp(firebaseConfig);
+  console.log('Firebase initialized successfully');
+} catch (error) {
+  console.error('Failed to initialize Firebase:', error);
+  // Create a fallback app with minimal config
+  app = initializeApp({
+    apiKey: "demo-key",
+    authDomain: "demo.firebaseapp.com",
+    projectId: "demo",
+    storageBucket: "demo.appspot.com",
+    messagingSenderId: "123456789",
+    appId: "1:123456789:web:demo"
+  });
+}
 
 // Initialize Analytics and export it
 // Note: Analytics only works in the browser, so we need to check if we're in a browser environment
 let analytics;
 if (typeof window !== 'undefined') {
-  analytics = getAnalytics(app);
+  try {
+    analytics = getAnalytics(app);
+  } catch (error) {
+    console.warn('Failed to initialize Analytics:', error);
+  }
 }
 
-// Initialize Firebase services
-export const auth = getAuth(app);
-export const db = getFirestore(app);
-export const storage = getStorage(app);
+// Initialize Firebase services with error handling
+let auth, db, storage;
 
-export { app, analytics }; 
+try {
+  auth = getAuth(app);
+  db = getFirestore(app);
+  storage = getStorage(app);
+  console.log('Firebase services initialized successfully:', {
+    auth: !!auth,
+    db: !!db,
+    storage: !!storage
+  });
+} catch (error) {
+  console.error('Failed to initialize Firebase services:', error);
+  // These will be undefined if initialization fails
+}
+
+export { app, analytics, auth, db, storage }; 

@@ -4,7 +4,9 @@ import { Inter } from "next/font/google"
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { AuthProvider } from "@/components/auth-provider"
-import { Toaster } from "sonner"
+import { LanguageProvider } from "@/components/language-provider"
+import { Toaster } from "@/components/ui/sonner"
+import { NotificationInitializer } from "@/components/notification-initializer"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -40,8 +42,11 @@ export default function RootLayout({
       <body className={`${inter.className} bg-pattern min-h-screen`}>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
           <AuthProvider>
-            {children}
-            <Toaster position="top-right" />
+            <LanguageProvider>
+              <NotificationInitializer />
+              {children}
+              <Toaster position="top-right" />
+            </LanguageProvider>
           </AuthProvider>
         </ThemeProvider>
       </body>

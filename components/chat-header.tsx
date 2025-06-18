@@ -26,6 +26,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger } from "@/components/ui/dropdown-menu"
 import { Switch } from "@/components/ui/switch"
+import { LanguageSelector } from "@/components/language-selector"
 import { Chat, ChatService } from "@/lib/chat-service"
 import { toast } from "sonner"
 
@@ -201,6 +202,9 @@ export function ChatHeader({
 
       {/* Right side - Actions */}
       <div className="flex items-center gap-1 flex-shrink-0">
+        {/* Language selector */}
+        <LanguageSelector variant="compact" />
+
         {/* Search button */}
         <Button 
           variant="ghost" 
