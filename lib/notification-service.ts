@@ -18,47 +18,24 @@ class NotificationService {
     soundEnabled: true,
     soundVolume: 50,
   }
-  private isWindowFocused: boolean = true
 
   constructor() {
-    this.initializeAudio()
-    this.loadSettings()
-    this.initializeFocusDetection()
-  }
-
-  private initializeFocusDetection() {
     if (typeof window !== 'undefined') {
-      // Set initial focus state
-      this.isWindowFocused = document.hasFocus()
-
-      // Add focus/blur listeners
-      window.addEventListener('focus', () => {
-        this.isWindowFocused = true
-      })
-      window.addEventListener('blur', () => {
-        this.isWindowFocused = false
-      })
+      this.initializeAudio()
+      this.loadSettings()
+      this.requestPermission() // Request permission on initialization
     }
   }
 
   private async initializeAudio() {
     try {
       this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
-      await this.loadNotificationSound()
-    } catch (error) {
-      console.warn('Audio context not supported:', error)
-    }
-  }
-
-  private async loadNotificationSound() {
-    try {
-      // Create a simple notification sound using Web Audio API
-      const sampleRate = this.audioContext?.sampleRate || 44100
-      const duration = 0.3 // 300ms
-      const frequency = 800 // Hz
       
-      if (!this.audioContext) return
-
+      // Create a simple notification sound
+      const sampleRate = this.audioContext.sampleRate
+      const duration = 0.2 // Duration in seconds
+      const frequency = 440 // Frequency in Hz
+      
       const buffer = this.audioContext.createBuffer(1, sampleRate * duration, sampleRate)
       const channelData = buffer.getChannelData(0)
       
@@ -103,12 +80,13 @@ class NotificationService {
       return true
     }
 
-    if (Notification.permission === 'denied') {
+    try {
+      const permission = await Notification.requestPermission()
+      return permission === 'granted'
+    } catch (error) {
+      console.warn('Failed to request notification permission:', error)
       return false
     }
-
-    const permission = await Notification.requestPermission()
-    return permission === 'granted'
   }
 
   updateSettings(newSettings: Partial<NotificationSettings>) {
@@ -149,11 +127,6 @@ class NotificationService {
   }
 
   async showNotification(title: string, options: NotificationOptions = {}) {
-    // Don't show notifications if the window is focused and the chat is visible
-    if (this.isWindowFocused && document.visibilityState === 'visible') {
-      return
-    }
-
     if (!this.settings.enabled) {
       return
     }
@@ -163,41 +136,25 @@ class NotificationService {
       return
     }
 
-    const defaultOptions: NotificationOptions = {
-      icon: '/placeholder-logo.png',
-      badge: '/placeholder-logo.png',
-      requireInteraction: false,
-      silent: true, // We'll handle sound separately
-      vibrate: [200, 100, 200], // Add vibration pattern for mobile devices
-      ...options
-    }
-
     try {
+      const defaultOptions: NotificationOptions = {
+        icon: '/placeholder-logo.png',
+        badge: '/placeholder-logo.png',
+        requireInteraction: false,
+        silent: !this.settings.soundEnabled, // Use system sound if enabled
+        ...options
+      }
+
       const notification = new Notification(title, defaultOptions)
       
-      // Play sound if enabled
-      if (this.settings.soundEnabled) {
+      // Play custom sound if enabled and system sound is disabled
+      if (this.settings.soundEnabled && defaultOptions.silent) {
         await this.playNotificationSound()
       }
 
-      // Handle notification click
-      notification.onclick = () => {
-        // Focus the window and close the notification
-        window.focus()
-        notification.close()
-        
-        // Handle any additional click actions based on the notification data
-        if (options.data?.chatId) {
-          // Navigate to the chat if a chatId is provided
-          window.location.href = `/chat/${options.data.chatId}`
-        }
-      }
-
-      // Auto-close after 5 seconds if not requiring interaction
-      if (!options.requireInteraction) {
-        setTimeout(() => {
-          notification.close()
-        }, 5000)
+      // Auto-close after 5 seconds for non-interactive notifications
+      if (!defaultOptions.requireInteraction) {
+        setTimeout(() => notification.close(), 5000)
       }
 
       return notification
@@ -206,7 +163,7 @@ class NotificationService {
     }
   }
 
-  async notifyNewMessage(senderName: string, message: string, isGroup: boolean = false, chatId?: string) {
+  async notifyNewMessage(senderName: string, message: string, isGroup: boolean = false) {
     if (!this.settings.messageNotifications) {
       return
     }
@@ -215,23 +172,16 @@ class NotificationService {
       return
     }
 
-    // Don't show notification if the window is focused and chat is visible
-    if (this.isWindowFocused && document.visibilityState === 'visible') {
-      return
-    }
-
     const title = isGroup ? `New group message from ${senderName}` : `New message from ${senderName}`
     const body = message.length > 100 ? message.substring(0, 100) + '...' : message
 
     await this.showNotification(title, {
       body,
-      tag: `new-message-${chatId || 'unknown'}`, // Use unique tag per chat
-      requireInteraction: false, // Don't require interaction for message notifications
+      tag: 'new-message',
       data: {
         type: 'message',
         sender: senderName,
-        isGroup,
-        chatId
+        isGroup
       }
     })
   }

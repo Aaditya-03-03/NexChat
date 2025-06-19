@@ -103,24 +103,19 @@ export class ChatService {
             await this.markMessageAsDelivered(chatId, doc.id, currentUserId);
           }
           
-          // Mark as read if the chat window is open
+          // Mark as read if the chat window is open and visible
           if (document.visibilityState === 'visible' && !messageData.readBy?.includes(currentUserId)) {
             await this.markMessageAsRead(chatId, doc.id, currentUserId);
           }
+
+          // Check if this is a new message that needs notification
+          const messageTime = messageData.timestamp?.toDate?.() || new Date(messageData.timestamp);
+          const isNewMessage = Date.now() - messageTime.getTime() < 10000; // Within last 10 seconds
+          
+          if (isNewMessage) {
+            await this.handleNewMessageNotification(messageData, chatId);
+          }
         }
-      }
-      
-      // Check for new messages and trigger notifications
-      if (currentUserId) {
-        const newMessages = messages.filter(msg => 
-          msg.userId !== currentUserId && 
-          msg.timestamp && 
-          new Date(msg.timestamp.toDate ? msg.timestamp.toDate() : msg.timestamp).getTime() > Date.now() - 10000 // Messages from last 10 seconds
-        );
-        
-        newMessages.forEach(message => {
-          this.handleNewMessageNotification(message, chatId);
-        });
       }
       
       console.log('ChatService: Calling callback with messages:', messages.length)
@@ -133,6 +128,11 @@ export class ChatService {
   // Handle notifications for new messages
   private static async handleNewMessageNotification(message: Message, chatId: string) {
     try {
+      // Don't notify if the document is visible and the chat window is open
+      if (document.visibilityState === 'visible') {
+        return;
+      }
+
       // Get chat details to determine if it's a group chat
       const chatDoc = await getDoc(doc(db, 'chats', chatId));
       if (!chatDoc.exists()) return;
@@ -143,19 +143,22 @@ export class ChatService {
       // Check if user is mentioned in group messages
       const isMentioned = isGroupChat && message.content.includes('@');
       
+      // Truncate long messages for notification
+      const truncatedContent = message.content.length > 100 
+        ? message.content.substring(0, 97) + '...'
+        : message.content;
+      
       if (isMentioned) {
         await notificationService.notifyMention(
           message.userDisplayName,
-          message.content,
-          chatData.name || 'Group',
-          chatId
+          truncatedContent,
+          chatData.name || 'Group'
         );
       } else {
         await notificationService.notifyNewMessage(
           message.userDisplayName,
-          message.content,
-          isGroupChat,
-          chatId
+          truncatedContent,
+          isGroupChat
         );
       }
     } catch (error) {
