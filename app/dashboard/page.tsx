@@ -56,6 +56,7 @@ import { doc, getDoc, getDocs, collection } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import { cn } from "@/lib/utils"
 import { CreateGroupModal } from "@/components/create-group-modal"
+import { UserProfileModal } from "@/components/user-profile-modal"
 
 // Custom hook for debounced search
 function useDebounce<T>(value: T, delay: number): T {
@@ -122,6 +123,10 @@ export default function DashboardPage() {
 
   // Add state for create group modal
   const [showCreateGroupModal, setShowCreateGroupModal] = useState(false)
+
+  // Add a state for the selected profile userId
+  const [showProfileModal, setShowProfileModal] = useState(false)
+  const [profileUserId, setProfileUserId] = useState<string | null>(null)
 
   // Check if we're on mobile
   useEffect(() => {
@@ -605,6 +610,16 @@ export default function DashboardPage() {
     } catch (error) {
       toast.error("Failed to delete chat")
     }
+  }
+
+  // Replace the sidebar UserProfile with the modal
+  // Find the userId for the selected chat (for direct chat, it's the other participant)
+  const getProfileUserId = () => {
+    if (!selectedChat) return null
+    if (selectedChat.type === 'direct') {
+      return selectedChat.participants.find(p => p !== user?.uid) || null
+    }
+    return selectedChat.id // For group, use chat id
   }
 
   if (loading) {
@@ -1340,23 +1355,11 @@ export default function DashboardPage() {
         )}
         
         {showProfile && selectedChat && (
-          <UserProfile 
-            user={{
-              id: selectedChat.type === 'direct' 
-                ? selectedChat.participants.find(p => p !== user?.uid) || 'unknown'
-                : selectedChat.id,
-              name: selectedChat.type === 'direct' 
-                ? userNames[selectedChat.participants.find(p => p !== user?.uid) || ''] || 'Unknown User'
-                : selectedChat.name || 'Group Chat',
-              avatar: selectedChat.photoURL,
-              isOnline: true,
-              about: selectedChat.type === 'direct' ? 'Hey there! I\'m using Nex Chat.' : `${selectedChat.participants.length} members`
-            }} 
+          <UserProfileModal
+            userId={getProfileUserId() || ''}
+            isOpen={showProfile}
             onClose={() => setShowProfile(false)}
-            onDeleteChat={() => {
-              handleDeleteChat(selectedChat.id)
-              setShowProfile(false)
-            }}
+            userStatus={undefined} // Optionally pass user status if available
           />
         )}
       </ChatLayout>
