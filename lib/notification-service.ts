@@ -18,10 +18,27 @@ class NotificationService {
     soundEnabled: true,
     soundVolume: 50,
   }
+  private isWindowFocused: boolean = true
 
   constructor() {
     this.initializeAudio()
     this.loadSettings()
+    this.initializeFocusDetection()
+  }
+
+  private initializeFocusDetection() {
+    if (typeof window !== 'undefined') {
+      // Set initial focus state
+      this.isWindowFocused = document.hasFocus()
+
+      // Add focus/blur listeners
+      window.addEventListener('focus', () => {
+        this.isWindowFocused = true
+      })
+      window.addEventListener('blur', () => {
+        this.isWindowFocused = false
+      })
+    }
   }
 
   private async initializeAudio() {
@@ -132,6 +149,11 @@ class NotificationService {
   }
 
   async showNotification(title: string, options: NotificationOptions = {}) {
+    // Don't show notifications if the window is focused and the chat is visible
+    if (this.isWindowFocused && document.visibilityState === 'visible') {
+      return
+    }
+
     if (!this.settings.enabled) {
       return
     }
@@ -146,6 +168,7 @@ class NotificationService {
       badge: '/placeholder-logo.png',
       requireInteraction: false,
       silent: true, // We'll handle sound separately
+      vibrate: [200, 100, 200], // Add vibration pattern for mobile devices
       ...options
     }
 
@@ -157,10 +180,25 @@ class NotificationService {
         await this.playNotificationSound()
       }
 
-      // Auto-close after 5 seconds
-      setTimeout(() => {
+      // Handle notification click
+      notification.onclick = () => {
+        // Focus the window and close the notification
+        window.focus()
         notification.close()
-      }, 5000)
+        
+        // Handle any additional click actions based on the notification data
+        if (options.data?.chatId) {
+          // Navigate to the chat if a chatId is provided
+          window.location.href = `/chat/${options.data.chatId}`
+        }
+      }
+
+      // Auto-close after 5 seconds if not requiring interaction
+      if (!options.requireInteraction) {
+        setTimeout(() => {
+          notification.close()
+        }, 5000)
+      }
 
       return notification
     } catch (error) {
@@ -168,7 +206,7 @@ class NotificationService {
     }
   }
 
-  async notifyNewMessage(senderName: string, message: string, isGroup: boolean = false) {
+  async notifyNewMessage(senderName: string, message: string, isGroup: boolean = false, chatId?: string) {
     if (!this.settings.messageNotifications) {
       return
     }
@@ -177,16 +215,23 @@ class NotificationService {
       return
     }
 
+    // Don't show notification if the window is focused and chat is visible
+    if (this.isWindowFocused && document.visibilityState === 'visible') {
+      return
+    }
+
     const title = isGroup ? `New group message from ${senderName}` : `New message from ${senderName}`
     const body = message.length > 100 ? message.substring(0, 100) + '...' : message
 
     await this.showNotification(title, {
       body,
-      tag: 'new-message',
+      tag: `new-message-${chatId || 'unknown'}`, // Use unique tag per chat
+      requireInteraction: false, // Don't require interaction for message notifications
       data: {
         type: 'message',
         sender: senderName,
-        isGroup
+        isGroup,
+        chatId
       }
     })
   }

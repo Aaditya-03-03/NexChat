@@ -1,6 +1,13 @@
 {
   "$schema": "https://ui.shadcn.com/schema.json",
-  "style": "default",
+  "style": {
+    "prefix": "nx",
+    "spacing": {
+      "padding": "4",
+      "margin": "4",
+      "gap": "4"
+    }
+  },
   "rsc": true,
   "tsx": true,
   "tailwind": {
@@ -17,5 +24,58 @@
     "lib": "@/lib",
     "hooks": "@/hooks"
   },
-  "iconLibrary": "lucide"
+  "iconLibrary": "lucide",
+  "components": {
+    "layout": {
+      "chat": ["chat-layout", "chat-header", "chat-window", "chat-list"],
+      "auth": ["auth-layout", "auth-provider", "protected-route"],
+      "common": ["theme-provider", "language-provider"]
+    },
+    "features": {
+      "messaging": ["message-reactions", "message-search", "emoji-picker"],
+      "files": ["file-upload", "short-link-display"],
+      "groups": ["create-group-modal", "group-management"],
+      "settings": [
+        "account-settings",
+        "privacy-settings",
+        "notification-settings",
+        "language-settings",
+        "help-settings"
+      ]
+    },
+    "ui": {
+      "data-display": ["avatar", "badge", "card", "table"],
+      "inputs": ["button", "input", "select", "textarea"],
+      "feedback": ["alert", "progress", "skeleton", "toast"],
+      "navigation": ["tabs", "breadcrumb", "pagination", "sidebar"],
+      "overlay": ["dialog", "drawer", "popover", "tooltip"],
+      "utils": ["separator", "scroll-area", "resizable"]
+    }
+  },
+  "features": {
+    "auth": {
+      "signIn": true,
+      "signUp": true,
+      "passwordReset": true,
+      "oauth": ["google"]
+    },
+    "chat": {
+      "directMessages": true,
+      "groupChats": true,
+      "fileSharing": true,
+      "reactions": true,
+      "typing": true,
+      "readReceipts": true
+    },
+    "notifications": {
+      "inApp": true,
+      "push": true,
+      "email": false
+    },
+    "files": {
+      "maxSize": "50MB",
+      "types": ["image", "video", "audio", "document"],
+      "shortUrls": true
+    }
+  }
 }

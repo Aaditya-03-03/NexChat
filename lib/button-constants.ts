@@ -2,6 +2,39 @@
 // This file centralizes all button configurations to ensure consistency across the application
 
 import { ICONS, ICON_SIZES, ICON_COLORS } from './icon-constants'
+import { 
+  MessageSquare, 
+  Users, 
+  Settings, 
+  Search, 
+  Plus,
+  Phone, 
+  Video,
+  MoreHorizontal,
+  UserPlus,
+  Shield,
+  Bell,
+  HelpCircle,
+  Star,
+  Archive,
+  Trash2,
+  User,
+  Edit2,
+  Languages,
+  Database,
+  Send,
+  Image,
+  File,
+  Mic,
+  MapPin,
+  Smile,
+  Reply,
+  Copy,
+  Download,
+  Share2,
+  Crown,
+  LogOut
+} from 'lucide-react'
 
 // Button Categories
 export const BUTTON_CATEGORIES = {
@@ -468,4 +501,152 @@ export type ButtonCategory = keyof typeof BUTTON_CATEGORIES
 export type ButtonName<T extends ButtonCategory> = keyof typeof BUTTON_CATEGORIES[T]
 export type ButtonSize = keyof typeof BUTTON_SIZES
 export type ButtonVariant = keyof typeof BUTTON_VARIANTS
-export type ButtonState = keyof typeof BUTTON_STATES 
+export type ButtonState = keyof typeof BUTTON_STATES
+
+export const CHAT_BUTTONS = {
+  SEND: {
+    icon: Send,
+    label: 'Send Message',
+    action: 'send',
+    variant: 'primary'
+  },
+  ATTACH: {
+    icon: File,
+    label: 'Attach File',
+    action: 'attach',
+    variant: 'ghost'
+  },
+  EMOJI: {
+    icon: Smile,
+    label: 'Add Emoji',
+    action: 'emoji',
+    variant: 'ghost'
+  },
+  VOICE: {
+    icon: Mic,
+    label: 'Voice Message',
+    action: 'voice',
+    variant: 'ghost'
+  },
+  LOCATION: {
+    icon: MapPin,
+    label: 'Share Location',
+    action: 'location',
+    variant: 'ghost'
+  }
+}
+
+export const MESSAGE_ACTIONS = {
+  REPLY: {
+    icon: Reply,
+    label: 'Reply',
+    action: 'reply'
+  },
+  COPY: {
+    icon: Copy,
+    label: 'Copy',
+    action: 'copy'
+  },
+  EDIT: {
+    icon: Edit2,
+    label: 'Edit',
+    action: 'edit'
+  },
+  DELETE: {
+    icon: Trash2,
+    label: 'Delete',
+    action: 'delete'
+  }
+}
+
+export const FILE_ACTIONS = {
+  DOWNLOAD: {
+    icon: Download,
+    label: 'Download',
+    action: 'download'
+  },
+  SHARE: {
+    icon: Share2,
+    label: 'Share',
+    action: 'share'
+  },
+  COPY_LINK: {
+    icon: Copy,
+    label: 'Copy Link',
+    action: 'copyLink'
+  }
+}
+
+export const GROUP_ACTIONS = {
+  ADD_MEMBER: {
+    icon: UserPlus,
+    label: 'Add Member',
+    action: 'addMember'
+  },
+  REMOVE_MEMBER: {
+    icon: Users,
+    label: 'Remove Member',
+    action: 'removeMember'
+  },
+  MAKE_ADMIN: {
+    icon: Crown,
+    label: 'Make Admin',
+    action: 'makeAdmin'
+  },
+  LEAVE_GROUP: {
+    icon: LogOut,
+    label: 'Leave Group',
+    action: 'leaveGroup'
+  }
+}
+
+export const NAVIGATION_BUTTONS = {
+  CHATS: {
+    icon: MessageSquare,
+    label: 'Chats',
+    action: 'chats'
+  },
+  CONTACTS: {
+    icon: Users,
+    label: 'Contacts',
+    action: 'contacts'
+  },
+  SETTINGS: {
+    icon: Settings,
+    label: 'Settings',
+    action: 'settings'
+  },
+  SEARCH: {
+    icon: Search,
+    label: 'Search',
+    action: 'search'
+  }
+}
+
+export const SETTINGS_BUTTONS = {
+  PROFILE: {
+    icon: User,
+    label: 'Profile',
+    action: 'profile'
+  },
+  PRIVACY: {
+    icon: Shield,
+    label: 'Privacy',
+    action: 'privacy'
+  },
+  NOTIFICATIONS: {
+    icon: Bell,
+    label: 'Notifications',
+    action: 'notifications'
+  },
+  LANGUAGE: {
+    icon: Languages,
+    label: 'Language',
+    action: 'language'
+  },
+  HELP: {
+    icon: HelpCircle,
+    label: 'Help',
+    action: 'help'
+  }
+} 

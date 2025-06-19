@@ -49,6 +49,7 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [isUploading, setIsUploading] = useState(false)
+  const [isLeavingGroup, setIsLeavingGroup] = useState(false)
   
   // Voice recording states
   const [isRecording, setIsRecording] = useState(false)
@@ -76,6 +77,28 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
+
+  // Handle visibility change to mark messages as read
+  useEffect(() => {
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === 'visible' && messages.length > 0) {
+        // Mark all unread messages as read
+        for (const message of messages) {
+          if (message.userId !== currentUser?.uid && !message.readBy?.includes(currentUser?.uid)) {
+            await ChatService.markMessageAsRead(chat.id, message.id, currentUser?.uid);
+          }
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    // Initial check when component mounts
+    handleVisibilityChange();
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [chat.id, messages, currentUser?.uid]);
 
   const handleSendMessage = useCallback(() => {
     if (!newMessage.trim() && !selectedFile) return
@@ -141,16 +164,40 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
 
   const handleLogout = async () => {
     setIsLoggingOut(true)
-    const result = await logout()
-    
-    if (result.success) {
-      toast.success("Logged out successfully")
-      router.push("/")
-    } else {
-      toast.error(result.error || "Failed to logout")
+    try {
+      const result = await logout()
+      if (result.success) {
+        toast.success("Logged out successfully")
+        router.push("/")
+      } else {
+        toast.error(result.error || "Failed to logout")
+      }
+    } catch (error) {
+      toast.error("Failed to logout")
+    } finally {
+      setIsLoggingOut(false)
     }
-    
-    setIsLoggingOut(false)
+  }
+
+  const handleLeaveGroup = async () => {
+    if (!confirm("Are you sure you want to leave this group? You won't be able to rejoin unless invited.")) {
+      return
+    }
+
+    setIsLeavingGroup(true)
+    try {
+      const result = await ChatService.leaveGroup(chat.id, currentUser.uid)
+      if (result.success) {
+        toast.success("You have left the group")
+        onBackToChatList?.()
+      } else {
+        toast.error(result.error || "Failed to leave group")
+      }
+    } catch (error) {
+      toast.error("Failed to leave group")
+    } finally {
+      setIsLeavingGroup(false)
+    }
   }
 
   const handleAddReaction = useCallback(async (messageId: string, emoji: string) => {
@@ -316,6 +363,21 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
     }
   }, [])
 
+  const MessageStatusIcon = ({ message, isMyMsg }: { message: Message; isMyMsg: boolean }) => {
+    if (!isMyMsg) return null;
+
+    switch (message.status) {
+      case 'sent':
+        return <span className="text-xs md:text-sm font-medium opacity-90 text-muted-foreground">✓</span>;
+      case 'delivered':
+        return <span className="text-xs md:text-sm font-medium opacity-90 text-muted-foreground">✓✓</span>;
+      case 'read':
+        return <span className="text-xs md:text-sm font-medium opacity-90 dark:text-blue-400 text-blue-600">✓✓</span>;
+      default:
+        return <span className="text-xs md:text-sm font-medium opacity-90 text-muted-foreground">✓</span>;
+    }
+  };
+
   return (
     <div className="flex-1 flex flex-col glass-card rounded-none md:rounded-l-2xl overflow-hidden animate-slide-from-right h-full">
       {/* Chat header */}
@@ -392,15 +454,43 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
               <DropdownMenuItem onClick={() => setShowSearch(true)}>Search in conversation</DropdownMenuItem>
               <DropdownMenuItem>Mute notifications</DropdownMenuItem>
               <DropdownMenuItem>Block user</DropdownMenuItem>
-              {onDeleteChat && (
+              
+              {/* Group-specific actions */}
+              {chat.type === 'group' && (
+                <>
+                  <DropdownMenuItem 
+                    onClick={handleLeaveGroup}
+                    disabled={isLeavingGroup}
+                    className="text-destructive focus:text-destructive cursor-pointer"
+                  >
+                    <LogOut className="mr-2 h-4 w-4" />
+                    {isLeavingGroup ? "Leaving..." : "Exit Group"}
+                  </DropdownMenuItem>
+                  
+                  {/* Show delete group option only for group creator */}
+                  {chat.admins?.[0] === currentUser.uid && onDeleteChat && (
+                    <DropdownMenuItem 
+                      onClick={() => onDeleteChat(chat.id)}
+                      className="text-destructive focus:text-destructive cursor-pointer"
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Delete Group
+                    </DropdownMenuItem>
+                  )}
+                </>
+              )}
+              
+              {/* Direct chat actions */}
+              {chat.type === 'direct' && onDeleteChat && (
                 <DropdownMenuItem 
                   onClick={() => onDeleteChat(chat.id)}
                   className="text-destructive focus:text-destructive cursor-pointer"
                 >
                   <Trash2 className="mr-2 h-4 w-4" />
-                  Delete chat
+                  Delete Chat
                 </DropdownMenuItem>
               )}
+              
               <DropdownMenuSeparator />
               <DropdownMenuItem 
                 onClick={handleLogout}
@@ -599,19 +689,15 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
                         )}
                         
                         {/* Message metadata */}
-                        <div className="mt-1 flex items-center justify-between gap-2 opacity-70">
+                        <div className="mt-1 flex items-center justify-between gap-2 opacity-90">
                           <div className="flex items-center gap-1">
-                            <span className="text-[10px] md:text-xs">{formatTime(message.timestamp)}</span>
+                            <span className="text-xs md:text-sm">{formatTime(message.timestamp)}</span>
                             {message.edited && (
-                              <span className="text-[10px] md:text-xs text-muted-foreground">(edited)</span>
+                              <span className="text-xs md:text-sm text-muted-foreground">(edited)</span>
                             )}
                           </div>
                           <div className="flex items-center gap-1">
-                            {isMyMsg && (
-                              <span className="text-[10px] md:text-xs">
-                                {message.readBy.length > 1 ? "✓✓" : "✓"}
-                              </span>
-                            )}
+                            <MessageStatusIcon message={message} isMyMsg={isMyMsg} />
                           </div>
                         </div>
 
@@ -898,8 +984,13 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
           </Button>
         </div>
         {showEmojiPicker && (
-          <div className="mt-2">
-            <EmojiPicker onEmojiSelect={addEmoji} />
+          <div className="mt-2 relative">
+            <div className="absolute bottom-full left-0 right-0 mb-2 z-50">
+              <EmojiPicker 
+                onEmojiSelect={addEmoji} 
+                onClose={() => setShowEmojiPicker(false)}
+              />
+            </div>
           </div>
         )}
       </div>

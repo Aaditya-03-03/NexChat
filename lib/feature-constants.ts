@@ -610,4 +610,118 @@ export function getFeaturesByCategory(category: keyof typeof FEATURE_CATEGORIES)
 export type FeatureCategory = keyof typeof FEATURE_CATEGORIES
 export type FeatureName<T extends FeatureCategory> = keyof typeof FEATURE_CATEGORIES[T]
 export type FeatureStatus = keyof typeof FEATURE_STATUS
-export type FeaturePriority = keyof typeof FEATURE_PRIORITY 
+export type FeaturePriority = keyof typeof FEATURE_PRIORITY
+
+export const FEATURES = {
+  AUTH: {
+    SIGN_IN: true,
+    SIGN_UP: true,
+    PASSWORD_RESET: true,
+    OAUTH: {
+      GOOGLE: true,
+      GITHUB: false,
+      FACEBOOK: false
+    },
+    SESSION_TIMEOUT: 30 * 24 * 60 * 60 * 1000 // 30 days
+  },
+  
+  CHAT: {
+    DIRECT_MESSAGES: true,
+    GROUP_CHATS: true,
+    FILE_SHARING: true,
+    VOICE_MESSAGES: true,
+    VIDEO_CALLS: false,
+    VOICE_CALLS: false,
+    REACTIONS: true,
+    TYPING_INDICATOR: true,
+    READ_RECEIPTS: true,
+    MESSAGE_EDIT: true,
+    MESSAGE_DELETE: true,
+    MESSAGE_REPLY: true,
+    MESSAGE_FORWARD: false,
+    MESSAGE_PIN: false,
+    MESSAGE_SEARCH: true,
+    CHAT_SEARCH: true,
+    MAX_GROUP_SIZE: 100,
+    MAX_MESSAGE_LENGTH: 2000
+  },
+
+  FILES: {
+    ENABLED: true,
+    MAX_SIZE: 50 * 1024 * 1024, // 50MB
+    ALLOWED_TYPES: {
+      IMAGE: ['jpg', 'jpeg', 'png', 'gif', 'webp'],
+      VIDEO: ['mp4', 'webm', 'ogg'],
+      AUDIO: ['mp3', 'wav', 'ogg'],
+      DOCUMENT: ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt']
+    },
+    GENERATE_PREVIEW: true,
+    SHORT_URLS: true,
+    COMPRESSION: {
+      ENABLED: true,
+      MAX_WIDTH: 2048,
+      QUALITY: 0.8
+    }
+  },
+
+  NOTIFICATIONS: {
+    IN_APP: true,
+    PUSH: true,
+    EMAIL: false,
+    SOUND: true,
+    DESKTOP: true,
+    PREFERENCES: {
+      MESSAGES: true,
+      GROUP_MENTIONS: true,
+      NEW_MEMBERS: true
+    }
+  },
+
+  UI: {
+    THEME: {
+      DARK_MODE: true,
+      SYSTEM_THEME: true,
+      CUSTOM_COLORS: false
+    },
+    LANGUAGE: {
+      ENABLED: true,
+      DEFAULT: 'en',
+      AVAILABLE: ['en', 'es', 'fr', 'de', 'it', 'pt', 'ru', 'zh', 'ja', 'ko']
+    },
+    ANIMATIONS: true,
+    EMOJI_PICKER: true,
+    GIF_SUPPORT: false,
+    RESPONSIVE: {
+      MOBILE_BREAKPOINT: 768,
+      TABLET_BREAKPOINT: 1024
+    }
+  },
+
+  PRIVACY: {
+    ONLINE_STATUS: true,
+    LAST_SEEN: true,
+    READ_RECEIPTS: true,
+    TYPING_INDICATOR: true,
+    PROFILE_VISIBILITY: true,
+    MESSAGE_RETENTION: 365 // days
+  },
+
+  PERFORMANCE: {
+    MESSAGE_BATCH_SIZE: 50,
+    SCROLL_THRESHOLD: 0.8,
+    DEBOUNCE_DELAY: 300,
+    CACHE_DURATION: 60 * 60 * 1000 // 1 hour
+  },
+
+  LIMITS: {
+    MAX_CHATS: 100,
+    MAX_CONTACTS: 500,
+    MAX_GROUP_MEMBERS: 100,
+    MAX_FILE_SIZE: 50 * 1024 * 1024, // 50MB
+    MAX_FILES_PER_MESSAGE: 10,
+    RATE_LIMIT: {
+      MESSAGES_PER_MINUTE: 60,
+      FILE_UPLOADS_PER_HOUR: 100
+    }
+  }
+} 

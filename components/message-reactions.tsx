@@ -15,7 +15,7 @@ interface MessageReactionsProps {
   className?: string
 }
 
-const commonEmojis = ['👍', '❤️', '😂', '😮', '😢', '😡', '👏', '🎉']
+const commonEmojis = ['👍', '❤️', '😂', '😮', '😢', '😡', '👏', '🎉', '🫶', '🩷', '🩵', '🫡', '🔥', '✨', '🙏', '🥰', '😍', '🤔', '😎', '🤯']
 
 export function MessageReactions({ 
   reactions, 

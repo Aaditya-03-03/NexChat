@@ -22,4 +22,6 @@ export interface Message {
   timestamp: string
   sender: "me" | "other"
   status: "sent" | "delivered" | "read"
+  deliveredTo?: string[]
+  readBy?: string[]
 }

@@ -26,7 +26,7 @@ export interface Message {
   userDisplayName: string;
   userPhotoURL?: string;
   content: string;
-  type: 'text' | 'image' | 'file' | 'voice' | 'video' | 'location';
+  type: 'text' | 'image' | 'file' | 'voice' | 'video' | 'location' | 'system';
   timestamp: Timestamp;
   readBy: string[];
   edited?: boolean;
@@ -53,6 +53,8 @@ export interface Message {
   // URL fields for file sharing
   shortUrl?: string;
   originalUrl?: string;
+  status: 'sent' | 'delivered' | 'read';
+  deliveredTo: string[];
 }
 
 export interface Chat {
@@ -66,6 +68,7 @@ export interface Chat {
     content: string;
     timestamp: Timestamp;
     userId: string;
+    status: 'sent' | 'delivered' | 'read';
   };
   createdAt: Timestamp;
   updatedAt: Timestamp;
@@ -84,12 +87,28 @@ export class ChatService {
     const messagesRef = collection(db, 'chats', chatId, 'messages');
     const q = query(messagesRef, orderBy('timestamp', 'desc'), limit(50));
     
-    return onSnapshot(q, (snapshot) => {
+    return onSnapshot(q, async (snapshot) => {
       console.log('ChatService: Received snapshot for chat:', chatId, 'docs count:', snapshot.docs.length)
       const messages: Message[] = [];
-      snapshot.forEach((doc) => {
-        messages.push({ id: doc.id, ...doc.data() } as Message);
-      });
+      
+      // Process each message
+      for (const doc of snapshot.docs) {
+        const messageData = doc.data() as Message;
+        messages.push({ id: doc.id, ...messageData });
+        
+        // If there's a current user and the message is not from them
+        if (currentUserId && messageData.userId !== currentUserId) {
+          // Mark as delivered if not already delivered to this user
+          if (!messageData.deliveredTo?.includes(currentUserId)) {
+            await this.markMessageAsDelivered(chatId, doc.id, currentUserId);
+          }
+          
+          // Mark as read if the chat window is open
+          if (document.visibilityState === 'visible' && !messageData.readBy?.includes(currentUserId)) {
+            await this.markMessageAsRead(chatId, doc.id, currentUserId);
+          }
+        }
+      }
       
       // Check for new messages and trigger notifications
       if (currentUserId) {
@@ -128,13 +147,15 @@ export class ChatService {
         await notificationService.notifyMention(
           message.userDisplayName,
           message.content,
-          chatData.name || 'Group'
+          chatData.name || 'Group',
+          chatId
         );
       } else {
         await notificationService.notifyNewMessage(
           message.userDisplayName,
           message.content,
-          isGroupChat
+          isGroupChat,
+          chatId
         );
       }
     } catch (error) {
@@ -166,12 +187,14 @@ export class ChatService {
   }
 
   // Send a message
-  static async sendMessage(chatId: string, message: Omit<Message, 'id' | 'timestamp' | 'readBy'>) {
+  static async sendMessage(chatId: string, message: Omit<Message, 'id' | 'timestamp' | 'readBy' | 'deliveredTo'>) {
     try {
       const messagesRef = collection(db, 'chats', chatId, 'messages');
       const messageData = {
         ...message,
         timestamp: serverTimestamp(),
+        status: 'sent',
+        deliveredTo: [],
         readBy: [message.userId],
       };
       
@@ -184,11 +207,40 @@ export class ChatService {
           content: message.content,
           timestamp: serverTimestamp(),
           userId: message.userId,
+          status: 'sent'
         },
         updatedAt: serverTimestamp(),
       });
       
       return { success: true, messageId: docRef.id };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  // Mark message as delivered
+  static async markMessageAsDelivered(chatId: string, messageId: string, userId: string) {
+    try {
+      const messageRef = doc(db, 'chats', chatId, 'messages', messageId);
+      await updateDoc(messageRef, {
+        deliveredTo: arrayUnion(userId),
+        status: 'delivered'
+      });
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  // Mark message as read
+  static async markMessageAsRead(chatId: string, messageId: string, userId: string) {
+    try {
+      const messageRef = doc(db, 'chats', chatId, 'messages', messageId);
+      await updateDoc(messageRef, {
+        readBy: arrayUnion(userId),
+        status: 'read'
+      });
+      return { success: true };
     } catch (error: any) {
       return { success: false, error: error.message };
     }
@@ -259,19 +311,6 @@ export class ChatService {
       return { success: true, chatId: docRef.id };
     } catch (error: any) {
       console.error('ChatService: Error creating group chat:', error);
-      return { success: false, error: error.message };
-    }
-  }
-
-  // Mark message as read
-  static async markMessageAsRead(chatId: string, messageId: string, userId: string) {
-    try {
-      const messageRef = doc(db, 'chats', chatId, 'messages', messageId);
-      await updateDoc(messageRef, {
-        readBy: arrayUnion(userId),
-      });
-      return { success: true };
-    } catch (error: any) {
       return { success: false, error: error.message };
     }
   }
@@ -380,6 +419,67 @@ export class ChatService {
         }
       }
       return { success: false, error: 'Chat not found' };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  // Leave group chat (user leaves themselves)
+  static async leaveGroup(chatId: string, userId: string) {
+    try {
+      const chatRef = doc(db, 'chats', chatId);
+      const chatDoc = await getDoc(chatRef);
+      
+      if (!chatDoc.exists()) {
+        return { success: false, error: 'Chat not found' };
+      }
+      
+      const chatData = chatDoc.data() as Chat;
+      
+      // Check if it's a group chat
+      if (chatData.type !== 'group') {
+        return { success: false, error: 'This is not a group chat' };
+      }
+      
+      // Check if user is a participant
+      if (!chatData.participants.includes(userId)) {
+        return { success: false, error: 'You are not a member of this group' };
+      }
+      
+      // Check if user is the creator (first admin)
+      const isCreator = chatData.admins?.[0] === userId;
+      if (isCreator) {
+        return { success: false, error: 'Group creator cannot leave the group. Please delete the group instead.' };
+      }
+      
+      // Remove user from participants and admins
+      await updateDoc(chatRef, {
+        participants: arrayRemove(userId),
+        admins: arrayRemove(userId),
+        updatedAt: serverTimestamp(),
+      });
+
+      // Fetch user displayName
+      const userRef = doc(db, 'users', userId);
+      const userDoc = await getDoc(userRef);
+      let displayName = 'A member';
+      if (userDoc.exists()) {
+        displayName = userDoc.data().displayName || userDoc.data().name || 'A member';
+      }
+
+      // Send system message to group chat
+      const messagesRef = collection(db, 'chats', chatId, 'messages');
+      await addDoc(messagesRef, {
+        chatId,
+        userId: 'system',
+        userDisplayName: 'System',
+        content: `${displayName} has left the group`,
+        type: 'system',
+        timestamp: serverTimestamp(),
+        readBy: [],
+      });
+      
+      return { success: true };
     } catch (error: any) {
       return { success: false, error: error.message };
     }

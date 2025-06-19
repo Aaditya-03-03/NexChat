@@ -14,9 +14,12 @@ import { mockUsers } from "@/lib/mock-data"
 interface CreateGroupModalProps {
   open: boolean
   onClose: () => void
+  onCreateGroup?: (name: string, participants: string[]) => void
+  currentUser?: any
+  allUsers?: any[]
 }
 
-export function CreateGroupModal({ open, onClose }: CreateGroupModalProps) {
+export function CreateGroupModal({ open, onClose, onCreateGroup, currentUser, allUsers }: CreateGroupModalProps) {
   const [groupName, setGroupName] = useState("")
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedUsers, setSelectedUsers] = useState<string[]>([])
@@ -25,7 +28,14 @@ export function CreateGroupModal({ open, onClose }: CreateGroupModalProps) {
 
   if (!open) return null
 
-  const filteredUsers = mockUsers.filter((user) => user.name.toLowerCase().includes(searchQuery.toLowerCase()))
+  // Use real users if provided, otherwise fall back to mock users
+  const users = allUsers || mockUsers
+  const filteredUsers = users.filter((user) => {
+    const searchLower = searchQuery.toLowerCase()
+    const displayName = user.displayName || user.name || ''
+    const email = user.email || ''
+    return displayName.toLowerCase().includes(searchLower) || email.toLowerCase().includes(searchLower)
+  })
 
   const handleSelectUser = (userId: string) => {
     if (selectedUsers.includes(userId)) {
@@ -47,7 +57,14 @@ export function CreateGroupModal({ open, onClose }: CreateGroupModalProps) {
   }
 
   const handleCreateGroup = () => {
-    // Here you would create the group with the selected users
+    if (onCreateGroup) {
+      onCreateGroup(groupName, selectedUsers)
+    }
+    // Reset form
+    setGroupName("")
+    setSelectedUsers([])
+    setGroupImage(null)
+    setStep(1)
     onClose()
   }
 
@@ -80,22 +97,22 @@ export function CreateGroupModal({ open, onClose }: CreateGroupModalProps) {
                   <Label className="text-sm text-muted-foreground">Selected ({selectedUsers.length})</Label>
                   <div className="flex flex-wrap gap-2 mt-2">
                     {selectedUsers.map((userId) => {
-                      const user = mockUsers.find((u) => u.id === userId)
+                      const user = users.find((u) => u.uid === userId || u.id === userId)
                       if (!user) return null
 
                       return (
                         <div
-                          key={user.id}
+                          key={user.uid || user.id}
                           className="flex items-center gap-1 bg-primary/10 rounded-full pl-1 pr-2 py-1"
                         >
                           <Avatar className="h-6 w-6">
-                            <AvatarImage src={user.avatar || "/placeholder.svg"} alt={user.name} />
-                            <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
+                            <AvatarImage src={user.photoURL || user.avatar || "/placeholder.svg"} alt={user.displayName || user.name} />
+                            <AvatarFallback>{(user.displayName || user.name).charAt(0)}</AvatarFallback>
                           </Avatar>
-                          <span className="text-xs">{user.name}</span>
+                          <span className="text-xs">{user.displayName || user.name}</span>
                           <button
                             className="ml-1 text-muted-foreground hover:text-foreground"
-                            onClick={() => handleSelectUser(user.id)}
+                            onClick={() => handleSelectUser(user.uid || user.id)}
                           >
                             <X className="h-3 w-3" />
                           </button>
@@ -111,24 +128,24 @@ export function CreateGroupModal({ open, onClose }: CreateGroupModalProps) {
               <div className="p-2 space-y-1">
                 {filteredUsers.map((user) => (
                   <button
-                    key={user.id}
+                    key={user.uid || user.id}
                     className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-muted/50 transition-colors"
-                    onClick={() => handleSelectUser(user.id)}
+                    onClick={() => handleSelectUser(user.uid || user.id)}
                   >
                     <div className="relative">
                       <Avatar className="h-10 w-10">
-                        <AvatarImage src={user.avatar || "/placeholder.svg"} alt={user.name} />
-                        <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
+                        <AvatarImage src={user.photoURL || user.avatar || "/placeholder.svg"} alt={user.displayName || user.name} />
+                        <AvatarFallback>{(user.displayName || user.name).charAt(0)}</AvatarFallback>
                       </Avatar>
-                      {selectedUsers.includes(user.id) && (
+                      {selectedUsers.includes(user.uid || user.id) && (
                         <div className="absolute -right-1 -bottom-1 h-5 w-5 bg-primary rounded-full flex items-center justify-center text-white">
                           <Check className="h-3 w-3" />
                         </div>
                       )}
                     </div>
                     <div className="flex-1 text-left">
-                      <p className="font-medium">{user.name}</p>
-                      <p className="text-xs text-muted-foreground">{user.about || "Hey there! I'm using Nex Chat."}</p>
+                      <p className="font-medium">{user.displayName || user.name}</p>
+                      <p className="text-xs text-muted-foreground">{user.about || user.email || "Hey there! I'm using Nex Chat."}</p>
                     </div>
                   </button>
                 ))}
@@ -191,19 +208,19 @@ export function CreateGroupModal({ open, onClose }: CreateGroupModalProps) {
                 <Label className="text-sm text-muted-foreground">Participants ({selectedUsers.length})</Label>
                 <div className="flex flex-wrap gap-2">
                   {selectedUsers.map((userId) => {
-                    const user = mockUsers.find((u) => u.id === userId)
+                    const user = users.find((u) => u.uid === userId || u.id === userId)
                     if (!user) return null
 
                     return (
-                      <div key={user.id} className="flex items-center gap-1 bg-primary/10 rounded-full pl-1 pr-2 py-1">
+                      <div key={user.uid || user.id} className="flex items-center gap-1 bg-primary/10 rounded-full pl-1 pr-2 py-1">
                         <Avatar className="h-6 w-6">
-                          <AvatarImage src={user.avatar || "/placeholder.svg"} alt={user.name} />
-                          <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
+                          <AvatarImage src={user.photoURL || user.avatar || "/placeholder.svg"} alt={user.displayName || user.name} />
+                          <AvatarFallback>{(user.displayName || user.name).charAt(0)}</AvatarFallback>
                         </Avatar>
-                        <span className="text-xs">{user.name}</span>
+                        <span className="text-xs">{user.displayName || user.name}</span>
                         <button
                           className="ml-1 text-muted-foreground hover:text-foreground"
-                          onClick={() => handleSelectUser(user.id)}
+                          onClick={() => handleSelectUser(user.uid || user.id)}
                         >
                           <X className="h-3 w-3" />
                         </button>

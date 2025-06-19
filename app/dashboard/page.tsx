@@ -55,6 +55,7 @@ import { toast } from "sonner"
 import { doc, getDoc, getDocs, collection } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import { cn } from "@/lib/utils"
+import { CreateGroupModal } from "@/components/create-group-modal"
 
 // Custom hook for debounced search
 function useDebounce<T>(value: T, delay: number): T {
@@ -118,6 +119,9 @@ export default function DashboardPage() {
   const [showAddContactModal, setShowAddContactModal] = useState(false)
   const [addContactInput, setAddContactInput] = useState("")
   const [addContactLoading, setAddContactLoading] = useState(false)
+
+  // Add state for create group modal
+  const [showCreateGroupModal, setShowCreateGroupModal] = useState(false)
 
   // Check if we're on mobile
   useEffect(() => {
@@ -275,10 +279,12 @@ export default function DashboardPage() {
     
     console.log('2. Firebase Services Check:');
     try {
-      const { db, auth } = await import('@/lib/firebase');
+      const firebaseModule = await import('@/lib/firebase');
+      const db = firebaseModule.db as import('firebase/firestore').Firestore | undefined;
+      const auth = firebaseModule.auth as import('firebase/auth').Auth | undefined;
       console.log('   - Database object:', !!db);
       console.log('   - Auth object:', !!auth);
-      console.log('   - Current auth user:', auth.currentUser);
+      console.log('   - Current auth user:', auth?.currentUser);
     } catch (error) {
       console.error('❌ Firebase services not available:', error);
       toast.error('Firebase services not available');
@@ -816,10 +822,41 @@ export default function DashboardPage() {
                     </DialogFooter>
                   </DialogContent>
                 </Dialog>
+
+                {/* Create Group Modal */}
+                <CreateGroupModal 
+                  open={showCreateGroupModal} 
+                  onClose={() => setShowCreateGroupModal(false)}
+                  onCreateGroup={handleCreateGroupChat}
+                  currentUser={user}
+                  allUsers={allUsers}
+                />
                 
                 {/* Contacts List */}
                 <ScrollArea className="flex-1">
                   <div className="p-4 space-y-3">
+                    {/* Create Group Section */}
+                    <div className="bg-gradient-to-r from-primary/10 to-primary/5 border border-primary/20 rounded-xl p-4">
+                      <div className="flex items-center gap-4">
+                        <div className="h-12 w-12 bg-primary/20 rounded-full flex items-center justify-center">
+                          <Users className="h-6 w-6 text-primary" />
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="font-semibold text-base">Create New Group</h3>
+                          <p className="text-sm text-muted-foreground">Start a group conversation with multiple contacts</p>
+                        </div>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => setShowCreateGroupModal(true)}
+                          className="border-primary text-primary hover:bg-primary/10"
+                        >
+                          Create
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Contacts */}
                     {filteredUsers.map((contact) => (
                       <div
                         key={contact.uid}
@@ -1106,9 +1143,40 @@ export default function DashboardPage() {
                       </DialogContent>
                     </Dialog>
                     
+                    {/* Create Group Modal */}
+                    <CreateGroupModal 
+                      open={showCreateGroupModal} 
+                      onClose={() => setShowCreateGroupModal(false)}
+                      onCreateGroup={handleCreateGroupChat}
+                      currentUser={user}
+                      allUsers={allUsers}
+                    />
+                    
                     {/* Contacts List */}
                     <ScrollArea className="flex-1 h-full">
                       <div className="p-4 space-y-3">
+                        {/* Create Group Section */}
+                        <div className="bg-gradient-to-r from-primary/10 to-primary/5 border border-primary/20 rounded-xl p-4">
+                          <div className="flex items-center gap-4">
+                            <div className="h-12 w-12 bg-primary/20 rounded-full flex items-center justify-center">
+                              <Users className="h-6 w-6 text-primary" />
+                            </div>
+                            <div className="flex-1">
+                              <h3 className="font-semibold text-base">Create New Group</h3>
+                              <p className="text-sm text-muted-foreground">Start a group conversation with multiple contacts</p>
+                            </div>
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => setShowCreateGroupModal(true)}
+                              className="border-primary text-primary hover:bg-primary/10"
+                            >
+                              Create
+                            </Button>
+                          </div>
+                        </div>
+
+                        {/* Contacts */}
                         {filteredUsers.map((contact) => (
                           <div
                             key={contact.uid}
