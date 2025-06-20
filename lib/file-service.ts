@@ -2,6 +2,10 @@ import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage
 import { storage } from './firebase';
 import { createShortLink } from './utils';
 
+const CLOUDINARY_CLOUD_NAME = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
+const CLOUDINARY_API_KEY = process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY;
+const CLOUDINARY_API_SECRET = process.env.NEXT_PUBLIC_CLOUDINARY_API_SECRET;
+
 export interface UploadResult {
   success: boolean;
   url?: string;
@@ -21,9 +25,17 @@ export class FileService {
       'application/pdf',
       'application/msword',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/vnd.ms-powerpoint',
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
       'text/plain',
+      'text/csv',
       'application/zip',
-      'application/x-zip-compressed'
+      'application/x-zip-compressed',
+      'application/vnd.rar',
+      'application/x-rar-compressed',
+      'application/octet-stream',
     ];
     return documentTypes.includes(file.type);
   }
@@ -38,148 +50,112 @@ export class FileService {
     return file.type.startsWith('video/');
   }
 
-  // Upload image with quality preservation
+  // Upload image with Cloudinary
   static async uploadImage(file: File, chatId: string, signal?: AbortSignal): Promise<UploadResult> {
     try {
-      const timestamp = Date.now();
-      const fileName = `images/${chatId}/${timestamp}_${file.name}`;
-      const storageRef = ref(storage, fileName);
-      
-      // Upload without compression to preserve quality
-      await uploadBytes(storageRef, file);
-      
-      // Check if upload was cancelled
-      if (signal?.aborted) {
-        throw new Error('Upload cancelled');
+      const formData = new FormData();
+      formData.append('file', file);
+      // Optionally, you can append chatId if you want to use it in the API
+      // formData.append('chatId', chatId);
+      const res = await fetch('/api/cloudinary-test', {
+        method: 'POST',
+        body: formData,
+        signal,
+      });
+      const data = await res.json();
+      if (data.success && data.url) {
+        const shortUrl = createShortLink(data.url, file.name);
+        return { success: true, url: data.url, shortUrl };
+      } else {
+        return { success: false, error: data.error || 'Cloudinary upload failed' };
       }
-      
-      const downloadURL = await getDownloadURL(storageRef);
-      const shortUrl = createShortLink(downloadURL, file.name);
-      
-      return { success: true, url: downloadURL, shortUrl };
     } catch (error: any) {
-      if (error.message === 'Upload cancelled') {
-        throw error;
-      }
       return { success: false, error: error.message };
     }
   }
 
-  // Upload document
+  // Upload document with Cloudinary
   static async uploadDocument(file: File, chatId: string, signal?: AbortSignal): Promise<UploadResult> {
     try {
-      const timestamp = Date.now();
-      const fileName = `documents/${chatId}/${timestamp}_${file.name}`;
-      const storageRef = ref(storage, fileName);
-      
-      await uploadBytes(storageRef, file);
-      
-      // Check if upload was cancelled
-      if (signal?.aborted) {
-        throw new Error('Upload cancelled');
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch('/api/cloudinary-test', {
+        method: 'POST',
+        body: formData,
+        signal,
+      });
+      const data = await res.json();
+      if (data.success && data.url) {
+        const shortUrl = createShortLink(data.url, file.name);
+        return { success: true, url: data.url, shortUrl };
+      } else {
+        return { success: false, error: data.error || 'Cloudinary upload failed' };
       }
-      
-      const downloadURL = await getDownloadURL(storageRef);
-      const shortUrl = createShortLink(downloadURL, file.name);
-      
-      return { success: true, url: downloadURL, shortUrl };
     } catch (error: any) {
-      if (error.message === 'Upload cancelled') {
-        throw error;
-      }
       return { success: false, error: error.message };
     }
   }
 
-  // Upload voice note/audio
+  // Upload voice note/audio with Cloudinary
   static async uploadVoiceNote(file: File, chatId: string, signal?: AbortSignal): Promise<UploadResult> {
     try {
-      const timestamp = Date.now();
-      const fileName = `voice-notes/${chatId}/${timestamp}_${file.name}`;
-      const storageRef = ref(storage, fileName);
-      
-      await uploadBytes(storageRef, file);
-      
-      // Check if upload was cancelled
-      if (signal?.aborted) {
-        throw new Error('Upload cancelled');
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch('/api/cloudinary-test', {
+        method: 'POST',
+        body: formData,
+        signal,
+      });
+      const data = await res.json();
+      if (data.success && data.url) {
+        const shortUrl = createShortLink(data.url, file.name);
+        return { success: true, url: data.url, shortUrl };
+      } else {
+        return { success: false, error: data.error || 'Cloudinary upload failed' };
       }
-      
-      const downloadURL = await getDownloadURL(storageRef);
-      const shortUrl = createShortLink(downloadURL, file.name);
-      
-      return { success: true, url: downloadURL, shortUrl };
     } catch (error: any) {
-      if (error.message === 'Upload cancelled') {
-        throw error;
-      }
       return { success: false, error: error.message };
     }
   }
 
-  // Upload video
+  // Upload video with Cloudinary
   static async uploadVideo(file: File, chatId: string, signal?: AbortSignal): Promise<UploadResult> {
     try {
-      const timestamp = Date.now();
-      const fileName = `videos/${chatId}/${timestamp}_${file.name}`;
-      const storageRef = ref(storage, fileName);
-      
-      await uploadBytes(storageRef, file);
-      
-      // Check if upload was cancelled
-      if (signal?.aborted) {
-        throw new Error('Upload cancelled');
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch('/api/cloudinary-test', {
+        method: 'POST',
+        body: formData,
+        signal,
+      });
+      const data = await res.json();
+      if (data.success && data.url) {
+        const shortUrl = createShortLink(data.url, file.name);
+        return { success: true, url: data.url, shortUrl };
+      } else {
+        return { success: false, error: data.error || 'Cloudinary upload failed' };
       }
-      
-      const downloadURL = await getDownloadURL(storageRef);
-      const shortUrl = createShortLink(downloadURL, file.name);
-      
-      return { success: true, url: downloadURL, shortUrl };
     } catch (error: any) {
-      if (error.message === 'Upload cancelled') {
-        throw error;
-      }
       return { success: false, error: error.message };
     }
   }
 
-  // Upload any file type
-  static async uploadFile(file: File, chatId: string, signal?: AbortSignal): Promise<UploadResult> {
-    try {
-      const timestamp = Date.now();
-      const fileName = `files/${chatId}/${timestamp}_${file.name}`;
-      const storageRef = ref(storage, fileName);
-      
-      await uploadBytes(storageRef, file);
-      
-      // Check if upload was cancelled
-      if (signal?.aborted) {
-        throw new Error('Upload cancelled');
-      }
-      
-      const downloadURL = await getDownloadURL(storageRef);
-      const shortUrl = createShortLink(downloadURL, file.name);
-      
-      return { success: true, url: downloadURL, shortUrl };
-    } catch (error: any) {
-      if (error.message === 'Upload cancelled') {
-        throw error;
-      }
-      return { success: false, error: error.message };
-    }
-  }
-
-  // Upload profile picture
+  // Upload profile picture with Cloudinary
   static async uploadProfilePicture(file: File, userId: string): Promise<UploadResult> {
     try {
-      const timestamp = Date.now();
-      const fileName = `profile-pictures/${userId}/${timestamp}_${file.name}`;
-      const storageRef = ref(storage, fileName);
-      
-      await uploadBytes(storageRef, file);
-      const downloadURL = await getDownloadURL(storageRef);
-      
-      return { success: true, url: downloadURL };
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch('/api/cloudinary-test', {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await res.json();
+      if (data.success && data.url) {
+        const shortUrl = createShortLink(data.url, file.name);
+        return { success: true, url: data.url, shortUrl };
+      } else {
+        return { success: false, error: data.error || 'Cloudinary upload failed' };
+      }
     } catch (error: any) {
       return { success: false, error: error.message };
     }

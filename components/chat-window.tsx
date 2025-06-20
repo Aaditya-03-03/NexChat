@@ -22,6 +22,7 @@ import { useAuthContext } from "@/components/auth-provider"
 import { toast } from "sonner"
 import { FileService } from "@/lib/file-service"
 import { ShortLinkDisplay } from "@/components/short-link-display"
+import { Video as VideoIcon } from "lucide-react"
 
 interface ChatWindowProps {
   chat: Chat
@@ -51,12 +52,9 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
   const [isUploading, setIsUploading] = useState(false)
   const [isLeavingGroup, setIsLeavingGroup] = useState(false)
   
-  // Voice recording states
-  const [isRecording, setIsRecording] = useState(false)
-  const [recordingTime, setRecordingTime] = useState(0)
-  const [audioBlob, setAudioBlob] = useState<Blob | null>(null)
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
-  const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  // Video upload states
+  const [selectedVideo, setSelectedVideo] = useState<File | null>(null)
+  const [isUploadingVideo, setIsUploadingVideo] = useState(false)
 
   // Get chat display name from chat object
   const chatDisplayNameMemo = useMemo(() => {
@@ -110,14 +108,19 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
         setIsUploading(true);
         try {
           let result;
-          const type = selectedFile.type.startsWith('image/') ? 'image' : 'file';
-          
-          if (type === 'image') {
+          let type: 'image' | 'file';
+
+          if (FileService.isImage(selectedFile)) {
             result = await FileService.uploadImage(selectedFile, chat.id);
+            type = 'image';
+          } else if (FileService.isDocument(selectedFile)) {
+            result = await FileService.uploadDocument(selectedFile, chat.id);
+            type = 'file';
           } else {
             result = await FileService.uploadFile(selectedFile, chat.id);
+            type = 'file';
           }
-          
+
           if (result.success && result.url) {
             onSendMessage(newMessage.trim() || selectedFile.name, type, result.url, result.shortUrl);
             setSelectedFile(null);
@@ -130,12 +133,10 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
           setIsUploading(false);
         }
       };
-      
       uploadFile();
     } else {
       onSendMessage(newMessage.trim())
     }
-    
     setNewMessage("")
     setShowEmojiPicker(false)
     setReplyToMessage(null)
@@ -155,7 +156,7 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
   const formatTime = useCallback((timestamp: any) => {
     if (!timestamp) return ""
     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp)
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })
   }, [])
 
   const isMyMessage = useCallback((message: Message) => {
@@ -247,65 +248,29 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
     toast.error(error)
   }, [])
 
-  // Voice recording functions
-  const startRecording = useCallback(async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      const mediaRecorder = new MediaRecorder(stream)
-      const chunks: Blob[] = []
-
-      mediaRecorder.ondataavailable = (event) => {
-        chunks.push(event.data)
-      }
-
-      mediaRecorder.onstop = () => {
-        const blob = new Blob(chunks, { type: 'audio/wav' })
-        setAudioBlob(blob)
-        stream.getTracks().forEach(track => track.stop())
-      }
-
-      mediaRecorder.start()
-      mediaRecorderRef.current = mediaRecorder
-      setIsRecording(true)
-      setRecordingTime(0)
-
-      // Start timer
-      recordingIntervalRef.current = setInterval(() => {
-        setRecordingTime(prev => prev + 1)
-      }, 1000)
-    } catch (error) {
-      toast.error("Failed to start recording. Please check microphone permissions.")
-    }
+  // Video upload handler
+  const handleVideoUpload = useCallback((file: File) => {
+    setSelectedVideo(file)
+    setShowAttachMenu(false)
   }, [])
 
-  const stopRecording = useCallback(() => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop()
-      setIsRecording(false)
-      if (recordingIntervalRef.current) {
-        clearInterval(recordingIntervalRef.current)
-      }
-    }
-  }, [isRecording])
-
-  const sendVoiceNote = useCallback(async () => {
-    if (!audioBlob) return
-
+  const handleSendVideo = useCallback(async () => {
+    if (!selectedVideo) return
+    setIsUploadingVideo(true)
     try {
-      const file = new File([audioBlob], `voice-note-${Date.now()}.wav`, { type: 'audio/wav' })
-      const result = await FileService.uploadVoiceNote(file, chat.id)
-      
+      const result = await FileService.uploadVideo(selectedVideo, chat.id)
       if (result.success && result.url) {
-        onSendMessage('Voice note', 'voice', result.url, result.shortUrl)
-        setAudioBlob(null)
-        setRecordingTime(0)
+        onSendMessage(selectedVideo.name, 'video', result.url, result.shortUrl)
+        setSelectedVideo(null)
       } else {
-        toast.error("Failed to upload voice note")
+        toast.error(result.error || 'Failed to upload video')
       }
     } catch (error) {
-      toast.error("Failed to send voice note")
+      toast.error('Failed to upload video')
+    } finally {
+      setIsUploadingVideo(false)
     }
-  }, [audioBlob, chat.id, onSendMessage])
+  }, [selectedVideo, chat.id, onSendMessage])
 
   const shareLocation = useCallback(() => {
     if (navigator.geolocation) {
@@ -336,12 +301,6 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
       toast.error("Geolocation is not supported by this browser.")
     }
   }, [onSendMessage])
-
-  const formatRecordingTime = useCallback((seconds: number) => {
-    const mins = Math.floor(seconds / 60)
-    const secs = seconds % 60
-    return `${mins}:${secs.toString().padStart(2, '0')}`
-  }, [])
 
   const handleMessageSelect = useCallback((message: Message) => {
     // Close the search overlay
@@ -847,7 +806,7 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
               onClick={() => {
                 const input = document.createElement('input')
                 input.type = 'file'
-                input.accept = '.pdf,.doc,.docx,.txt,.zip,audio/*,video/*'
+                input.accept = '.pdf,.doc,.docx,.txt,.zip,audio/*'
                 input.onchange = (e) => {
                   const file = (e.target as HTMLInputElement).files?.[0]
                   if (file) handleFileUpload(file)
@@ -861,6 +820,22 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
             <button 
               className="flex flex-col items-center gap-1 p-2 rounded-lg hover:bg-muted/50 transition-colors"
               onClick={() => {
+                const input = document.createElement('input')
+                input.type = 'file'
+                input.accept = 'video/*'
+                input.onchange = (e) => {
+                  const file = (e.target as HTMLInputElement).files?.[0]
+                  if (file) handleVideoUpload(file)
+                }
+                input.click()
+              }}
+            >
+              <VideoIcon className="h-6 w-6" />
+              <span className="text-xs">Video</span>
+            </button>
+            <button 
+              className="flex flex-col items-center gap-1 p-2 rounded-lg hover:bg-muted/50 transition-colors"
+              onClick={() => {
                 setShowAttachMenu(false)
                 shareLocation()
               }}
@@ -868,75 +843,44 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
               <MapPin className="h-6 w-6" />
               <span className="text-xs">Location</span>
             </button>
-            <button 
-              className="flex flex-col items-center gap-1 p-2 rounded-lg hover:bg-muted/50 transition-colors"
-              onClick={() => {
-                setShowAttachMenu(false)
-                if (isRecording) {
-                  stopRecording()
-                } else {
-                  startRecording()
-                }
-              }}
-            >
-              {isRecording ? <Square className="h-6 w-6 text-red-500" /> : <Mic className="h-6 w-6" />}
-              <span className="text-xs">{isRecording ? 'Stop' : 'Voice'}</span>
-            </button>
           </div>
         </div>
       )}
 
-      {/* Voice recording indicator */}
-      {isRecording && (
-        <div className="p-2 border-t border-border/40 bg-red-500/10">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="h-3 w-3 bg-red-500 rounded-full animate-pulse"></div>
-              <span className="text-sm text-red-600">Recording... {formatRecordingTime(recordingTime)}</span>
-            </div>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={stopRecording}
-                className="h-8 px-3"
-              >
-                <Square className="h-4 w-4 mr-1" />
-                Stop
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Voice note preview */}
-      {audioBlob && !isRecording && (
+      {/* Video upload preview and send button */}
+      {selectedVideo && (
         <div className="p-2 border-t border-border/40 bg-muted/20">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
-              <Mic className="h-4 w-4 text-primary" />
-              <span className="text-sm">Voice note ready ({formatRecordingTime(recordingTime)})</span>
+              <VideoIcon className="h-4 w-4 text-primary" />
+              <span className="text-sm font-medium">{selectedVideo.name}</span>
+              <span className="text-xs text-muted-foreground">
+                ({FileService.formatFileSize(selectedVideo.size)})
+              </span>
+              {isUploadingVideo && (
+                <div className="flex items-center gap-1">
+                  <div className="h-3 w-3 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                  <span className="text-xs text-muted-foreground">Uploading...</span>
+                </div>
+              )}
             </div>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setAudioBlob(null)}
-                className="h-8 px-3"
-              >
-                <X className="h-4 w-4 mr-1" />
-                Cancel
-              </Button>
-              <Button
-                size="sm"
-                onClick={sendVoiceNote}
-                className="h-8 px-3"
-              >
-                <Send className="h-4 w-4 mr-1" />
-                Send
-              </Button>
-            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setSelectedVideo(null)}
+              disabled={isUploadingVideo}
+              className="h-6 w-6 p-0 text-destructive hover:text-destructive"
+            >
+              <X className="h-4 w-4" />
+            </Button>
           </div>
+          <Button
+            onClick={handleSendVideo}
+            disabled={isUploadingVideo}
+            className="mt-2"
+          >
+            {isUploadingVideo ? 'Uploading...' : 'Send Video'}
+          </Button>
         </div>
       )}
 
