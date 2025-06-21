@@ -52,15 +52,13 @@ import {
   Database
 } from "lucide-react"
 import { toast } from "sonner"
-import { doc, getDoc, getDocs, collection, Firestore } from "firebase/firestore"
+import { doc, getDoc, getDocs, collection, Firestore, Timestamp } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import { cn } from "@/lib/utils"
 import { CreateGroupModal } from "@/components/create-group-modal"
 import { UserProfileModal } from "@/components/user-profile-modal"
 import { ProfilePhotoViewer } from "@/components/profile-photo-viewer"
 import { useProfilePhotoViewer } from "@/hooks/use-profile-photo-viewer"
-
-const dbInstance: Firestore = db;
 
 // Custom hook for debounced search
 function useDebounce<T>(value: T, delay: number): T {
@@ -222,7 +220,7 @@ export default function DashboardPage() {
       if (userIdsToFetch.length > 0) {
         try {
           const userDocs = await Promise.all(
-            userIdsToFetch.map(userId => getDoc(doc(dbInstance, 'users', userId)))
+            userIdsToFetch.map(userId => getDoc(doc(db as Firestore, 'users', userId)))
           )
           
           userDocs.forEach((userDoc, index) => {
@@ -380,32 +378,16 @@ export default function DashboardPage() {
       userPhotoURL: user.photoURL || "",
       content: fileUrl || content,
       type,
-      originalUrl: fileUrl,
-      shortUrl: shortUrl,
-      ...(messageData || {}),
+      originalUrl: fileUrl || null,
+      shortUrl: shortUrl || null,
+      replyTo: messageData?.replyTo || null,
+      reactions: messageData?.reactions || [],
     };
-
-    // For text messages, we can do an optimistic update
-    if (type === 'text') {
-      setMessages(prev => [...prev, {
-        id: Date.now().toString(),
-        chatId: selectedChat.id,
-        status: 'sent',
-        timestamp: new Date(), // This will be replaced by server timestamp
-        readBy: [user.uid],
-        deliveredTo: [],
-        ...finalMessageData,
-      } as Message]);
-    }
 
     const result = await ChatService.sendMessage(selectedChat.id, finalMessageData as Omit<Message, 'id' | 'timestamp' | 'readBy' | 'deliveredTo' | 'status'>);
 
     if (!result.success) {
       toast.error(result.error || "Failed to send message");
-      // If optimistic update was done, revert it. A more robust way would be to find and remove the specific message.
-      if (type === 'text') {
-        setMessages(prev => prev.filter(m => m.content !== content));
-      }
     }
   };
 

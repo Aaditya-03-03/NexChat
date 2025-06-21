@@ -1,0 +1,27 @@
+{
+  "name": "nexchat-webrtc-server",
+  "version": "1.0.0",
+  "description": "WebRTC signaling server for NexChat",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "socket.io": "^4.8.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "keywords": [
+    "webrtc",
+    "signaling",
+    "chat",
+    "video-call",
+    "audio-call"
+  ],
+  "author": "",
+  "license": "MIT"
+}

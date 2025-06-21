@@ -1,9 +1,9 @@
 // Import the functions you need from the SDKs you need
-import { initializeApp } from "firebase/app";
-import { getAnalytics } from "firebase/analytics";
-import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
-import { getStorage } from "firebase/storage";
+import { initializeApp, FirebaseApp } from "firebase/app";
+import { getAnalytics, Analytics } from "firebase/analytics";
+import { getAuth, Auth } from "firebase/auth";
+import { getFirestore, Firestore } from "firebase/firestore";
+import { getStorage, FirebaseStorage } from "firebase/storage";
 // TODO: Add SDKs for Firebase products that you want to use
 // https://firebase.google.com/docs/web/setup#available-libraries
 
@@ -33,7 +33,7 @@ if (process.env.NODE_ENV === 'development') {
 }
 
 // Initialize Firebase with error handling
-let app;
+let app: FirebaseApp;
 try {
   app = initializeApp(firebaseConfig);
   console.log('Firebase initialized successfully');
@@ -52,7 +52,7 @@ try {
 
 // Initialize Analytics and export it
 // Note: Analytics only works in the browser, so we need to check if we're in a browser environment
-let analytics;
+let analytics: Analytics | undefined;
 if (typeof window !== 'undefined') {
   try {
     analytics = getAnalytics(app);
@@ -62,7 +62,9 @@ if (typeof window !== 'undefined') {
 }
 
 // Initialize Firebase services with error handling
-let auth, db, storage;
+let auth: Auth | undefined, 
+    db: Firestore | undefined, 
+    storage: FirebaseStorage | undefined;
 
 try {
   auth = getAuth(app);
