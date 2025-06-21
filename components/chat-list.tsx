@@ -21,6 +21,8 @@ import { doc, getDoc, onSnapshot } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import { useAuthContext } from "@/components/auth-provider"
 import { UserProfileModal } from "@/components/user-profile-modal"
+import { ProfilePhotoViewer } from "@/components/profile-photo-viewer"
+import { useProfilePhotoViewer } from "@/hooks/use-profile-photo-viewer"
 
 interface ChatListProps {
   chats: Chat[]
@@ -41,13 +43,14 @@ export function ChatList({
 }: ChatListProps) {
   const router = useRouter()
   const { logout } = useAuthContext()
+  const { isOpen, photoURL, userName, userId, openViewer, closeViewer } = useProfilePhotoViewer()
   const [searchQuery, setSearchQuery] = useState("")
   const [showCreateGroup, setShowCreateGroup] = useState(false)
   const [showNewChat, setShowNewChat] = useState(false)
   const [allUsers, setAllUsers] = useState<any[]>([])
   const [selectedUsers, setSelectedUsers] = useState<string[]>([])
   const [groupName, setGroupName] = useState("")
-  const [userNames, setUserNames] = useState<{[key: string]: string}>({})
+  const [userCache, setUserCache] = useState<{[key: string]: {displayName: string, photoURL: string}}>({})
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
   const [userStatuses, setUserStatuses] = useState<{[key: string]: UserStatus}>({})
@@ -64,36 +67,81 @@ export function ChatList({
     }
   }, [showNewChat, currentUser])
 
-  // Fetch user names for chat display
+  // Fetch user names for chat display with real-time updates
   useEffect(() => {
     const fetchUserNames = async () => {
-      const names: {[key: string]: string} = {}
-      
+      const newCache = { ...userCache };
+      let shouldUpdate = false;
+
       for (const chat of chats) {
         if (chat.type === 'direct') {
-          const otherUserId = chat.participants.find(p => p !== currentUser?.uid)
-          if (otherUserId && !names[otherUserId]) {
+          const otherUserId = chat.participants.find(p => p !== currentUser?.uid);
+          if (otherUserId && !newCache[otherUserId]) {
             try {
-              const userDoc = await getDoc(doc(db, 'users', otherUserId))
+              const userDoc = await getDoc(doc(db, 'users', otherUserId));
               if (userDoc.exists()) {
-                names[otherUserId] = userDoc.data().displayName || 'Unknown User'
+                const userData = userDoc.data();
+                newCache[otherUserId] = {
+                  displayName: userData.displayName || 'Unknown User',
+                  photoURL: userData.photoURL || ''
+                };
+                shouldUpdate = true;
               } else {
-                names[otherUserId] = 'Unknown User'
+                newCache[otherUserId] = { displayName: 'Unknown User', photoURL: '' };
+                shouldUpdate = true;
               }
             } catch (error) {
-              names[otherUserId] = 'Unknown User'
+              newCache[otherUserId] = { displayName: 'Unknown User', photoURL: '' };
+              shouldUpdate = true;
             }
           }
         }
       }
       
-      setUserNames(names)
-    }
+      if (shouldUpdate) {
+        setUserCache(newCache);
+      }
+    };
 
     if (chats.length > 0 && currentUser) {
-      fetchUserNames()
+      fetchUserNames();
     }
-  }, [chats, currentUser])
+  }, [chats, currentUser, userCache]);
+
+  // Real-time user profile updates
+  useEffect(() => {
+    if (!currentUser || chats.length === 0) return;
+
+    const unsubscribeFunctions: (() => void)[] = [];
+
+    // Subscribe to real-time updates for all users in direct chats
+    for (const chat of chats) {
+      if (chat.type === 'direct') {
+        const otherUserId = chat.participants.find(p => p !== currentUser?.uid);
+        if (otherUserId) {
+          const userRef = doc(db, 'users', otherUserId);
+          const unsubscribe = onSnapshot(userRef, (doc) => {
+            if (doc.exists()) {
+              const userData = doc.data();
+              setUserCache(prev => ({
+                ...prev,
+                [otherUserId]: {
+                  displayName: userData.displayName || 'Unknown User',
+                  photoURL: userData.photoURL || ''
+                }
+              }));
+            }
+          });
+          unsubscribeFunctions.push(unsubscribe);
+        }
+      }
+    }
+
+    // Cleanup function
+    return () => {
+      unsubscribeFunctions.forEach(unsubscribe => unsubscribe());
+    };
+  }, [chats, currentUser]);
 
   // Subscribe to user statuses
   useEffect(() => {
@@ -156,7 +204,7 @@ export function ChatList({
     if (chat.type === 'direct') {
       // For direct chats, show the other participant's name
       const otherParticipant = chat.participants.find(p => p !== currentUser?.uid)
-      const otherUserName = userNames[otherParticipant] || otherParticipant || 'Unknown User'
+      const otherUserName = userCache[otherParticipant]?.displayName || otherParticipant || 'Unknown User'
       return otherUserName.toLowerCase().includes(searchLower) ||
              (chat.lastMessage?.content.toLowerCase().includes(searchLower))
     } else {
@@ -182,13 +230,39 @@ export function ChatList({
     }
   }
 
+  const formatLastMessage = (message: Chat['lastMessage']) => {
+    if (!message) return ""
+    switch (message.type) {
+      case 'image':
+        return "[Image]"
+      case 'video':
+        return "[Video]"
+      case 'file':
+        return "[File]"
+      case 'voice':
+        return "[Voice Message]"
+      case 'location':
+        return "[Location]"
+      default:
+        return message.content
+    }
+  }
+
   const getChatDisplayName = (chat: Chat) => {
     if (chat.type === 'group') {
       return chat.name || 'Group Chat'
     } else {
-      // For direct chats, show the other participant's name
       const otherUserId = chat.participants.find(p => p !== currentUser?.uid)
-      return userNames[otherUserId] || otherUserId || 'Unknown User'
+      return userCache[otherUserId]?.displayName || 'Loading...'
+    }
+  }
+
+  const getChatPhotoURL = (chat: Chat) => {
+    if (chat.type === 'group') {
+      return chat.photoURL || '' // Return group photo or empty
+    } else {
+      const otherUserId = chat.participants.find(p => p !== currentUser?.uid)
+      return userCache[otherUserId]?.photoURL || '' // Return user photo or empty
     }
   }
 
@@ -293,9 +367,20 @@ export function ChatList({
                             onClick={(e) => otherUserId && handleProfileClick(e, otherUserId)}
                           >
                             <Avatar className="h-10 w-10 shrink-0">
-                              <AvatarImage src={chat.avatar || ""} />
+                              <AvatarImage 
+                                src={getChatPhotoURL(chat)} 
+                                alt={getChatDisplayName(chat)} 
+                                className="object-cover cursor-pointer hover:opacity-80 transition-opacity"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  const photoURL = getChatPhotoURL(chat)
+                                  if (photoURL) {
+                                    openViewer(photoURL, getChatDisplayName(chat), otherUserId || undefined)
+                                  }
+                                }}
+                              />
                               <AvatarFallback>
-                                {chat.type === "group" ? chat.name?.[0] : getChatDisplayName(chat)[0]}
+                                {getChatDisplayName(chat).charAt(0)}
                               </AvatarFallback>
                             </Avatar>
                             {chat.type === 'direct' && userStatus && (
@@ -306,19 +391,16 @@ export function ChatList({
                             className="contact-info cursor-pointer"
                             onClick={(e) => otherUserId && handleProfileClick(e, otherUserId)}
                           >
-                            <div className="flex items-center justify-between">
-                              <p className="font-medium truncate">{getChatDisplayName(chat)}</p>
-                              {chat.lastMessage && (
-                                <span className="text-xs text-muted-foreground ml-2">
-                                  {formatTime(chat.lastMessage.timestamp)}
-                                </span>
-                              )}
+                            <div className="flex-1 overflow-hidden">
+                              <div className="flex items-center gap-3">
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-medium truncate">{getChatDisplayName(chat)}</p>
+                                  <p className="text-sm text-muted-foreground truncate">
+                                    {formatLastMessage(chat.lastMessage)}
+                                  </p>
+                                </div>
+                              </div>
                             </div>
-                            {chat.lastMessage && (
-                              <p className="text-sm text-muted-foreground truncate">
-                                {chat.lastMessage.content}
-                              </p>
-                            )}
                           </div>
                           {chat.unreadCount > 0 && (
                             <Badge variant="default" className="shrink-0">
@@ -374,7 +456,16 @@ export function ChatList({
                               onClick={(e) => handleProfileClick(e, user.uid)}
                             >
                               <Avatar className="h-10 w-10 shrink-0">
-                                <AvatarImage src={user.photoURL || ""} />
+                                <AvatarImage 
+                                  src={user.photoURL || ""} 
+                                  className="object-cover cursor-pointer hover:opacity-80 transition-opacity"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    if (user.photoURL) {
+                                      openViewer(user.photoURL, user.displayName || user.email, user.uid)
+                                    }
+                                  }}
+                                />
                                 <AvatarFallback>
                                   {user.displayName?.[0] || user.email?.[0]}
                                 </AvatarFallback>
@@ -450,6 +541,40 @@ export function ChatList({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Profile Photo Viewer */}
+      <ProfilePhotoViewer
+        isOpen={isOpen}
+        onClose={closeViewer}
+        photoURL={photoURL}
+        userName={userName}
+        userId={userId}
+        onMessage={() => {
+          closeViewer()
+          // Handle message action - could open chat or navigate to chat
+          if (userId) {
+            // Find the chat with this user and select it
+            const chat = chats.find(c => c.type === 'direct' && c.participants.includes(userId))
+            if (chat) {
+              onSelectChat(chat)
+            }
+          }
+        }}
+        onAudioCall={() => {
+          closeViewer()
+          toast.info("Audio call feature coming soon!")
+        }}
+        onVideoCall={() => {
+          closeViewer()
+          toast.info("Video call feature coming soon!")
+        }}
+        onInfo={() => {
+          closeViewer()
+          if (userId) {
+            setSelectedProfileUserId(userId)
+          }
+        }}
+      />
     </>
   )
 }

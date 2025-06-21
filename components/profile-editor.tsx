@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { FileService } from "@/lib/file-service"
 import { ChatService } from "@/lib/chat-service"
+import { useAuthContext } from "@/components/auth-provider"
 import { toast } from "sonner"
 
 interface ProfileEditorProps {
@@ -19,9 +20,10 @@ interface ProfileEditorProps {
 }
 
 export function ProfileEditor({ user, userProfile, onClose, onUpdate }: ProfileEditorProps) {
+  const { refreshUserProfile } = useAuthContext()
   const [displayName, setDisplayName] = useState(userProfile?.displayName || "")
   const [bio, setBio] = useState(userProfile?.bio || "")
-  const [photoURL, setPhotoURL] = useState(userProfile?.photoURL || "")
+  const [photoURL, setPhotoURL] = useState(userProfile?.photoURL || null)
   const [isLoading, setIsLoading] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -49,6 +51,7 @@ export function ProfileEditor({ user, userProfile, onClose, onUpdate }: ProfileE
           photoURL,
         })
         onClose()
+        refreshUserProfile()
       } else {
         toast.error(result.error || "Failed to update profile")
       }
@@ -71,16 +74,37 @@ export function ProfileEditor({ user, userProfile, onClose, onUpdate }: ProfileE
     }
 
     setIsUploading(true)
+    const originalPhotoURL = photoURL // Store original URL for potential revert
     try {
-      const result = await FileService.uploadProfilePicture(file, user.uid)
+      const uploadResult = await FileService.uploadProfilePicture(file, user.uid)
       
-      if (result.success && result.url) {
-        setPhotoURL(result.url)
-        toast.success("Profile picture updated successfully")
+      if (uploadResult.success && uploadResult.url) {
+        setPhotoURL(uploadResult.url) // Optimistically update UI
+        toast.promise(
+          ChatService.updateUserProfile(user.uid, { photoURL: uploadResult.url }),
+          {
+            loading: "Saving new picture...",
+            success: (updateResult) => {
+              if (updateResult.success) {
+                onUpdate({ ...userProfile, photoURL: uploadResult.url })
+                refreshUserProfile()
+                return "Profile picture updated successfully!"
+              } else {
+                // Manually throw to enter the catch block for toast
+                throw new Error(updateResult.error || "Failed to save profile picture.")
+              }
+            },
+            error: (err) => {
+              setPhotoURL(originalPhotoURL) // Revert on failure
+              return err.message
+            },
+          }
+        )
       } else {
-        toast.error(result.error || "Failed to upload image")
+        toast.error(uploadResult.error || "Failed to upload image")
       }
     } catch (error: any) {
+      setPhotoURL(originalPhotoURL) // Revert on failure
       toast.error(error.message || "Failed to upload image")
     } finally {
       setIsUploading(false)
@@ -96,9 +120,24 @@ export function ProfileEditor({ user, userProfile, onClose, onUpdate }: ProfileE
     e.target.value = ""
   }
 
-  const handleRemovePhoto = () => {
-    setPhotoURL("")
-    toast.success("Profile picture removed")
+  const handleRemovePhoto = async () => {
+    const originalPhotoURL = photoURL
+    setPhotoURL(null) // Optimistically update UI
+
+    try {
+      const result = await ChatService.updateUserProfile(user.uid, { photoURL: null })
+      if (result.success) {
+        toast.success("Profile picture removed successfully")
+        onUpdate({ ...userProfile, photoURL: null })
+        refreshUserProfile()
+      } else {
+        setPhotoURL(originalPhotoURL) // Revert on failure
+        toast.error(result.error || "Failed to remove profile picture")
+      }
+    } catch (error: any) {
+      setPhotoURL(originalPhotoURL) // Revert on failure
+      toast.error(error.message || "Failed to remove profile picture")
+    }
   }
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -130,7 +169,7 @@ export function ProfileEditor({ user, userProfile, onClose, onUpdate }: ProfileE
           <div className="flex flex-col items-center space-y-4">
             <div className="relative group">
               <Avatar className="h-24 w-24 ring-4 ring-background shadow-lg">
-                <AvatarImage src={photoURL} alt={displayName} />
+                {photoURL && <AvatarImage src={photoURL} alt={displayName} className="object-cover" />}
                 <AvatarFallback className="bg-gradient-to-br from-primary/20 to-primary/10 text-primary text-2xl font-semibold">
                   {displayName ? displayName.charAt(0).toUpperCase() : <User className="h-8 w-8" />}
                 </AvatarFallback>

@@ -33,7 +33,7 @@ export function UserProfile({ user, onClose, onDeleteChat }: UserProfileProps) {
           <div className="flex flex-col items-center justify-center py-6">
             <div className="relative group">
               <Avatar className="h-24 w-24 border-4 border-background">
-                <AvatarImage src={user.avatar || "/placeholder.svg"} alt={user.name} />
+                <AvatarImage src={user.avatar || "/placeholder.svg"} alt={user.name} className="object-cover" />
                 <AvatarFallback className="text-2xl">{user.name.charAt(0)}</AvatarFallback>
               </Avatar>
               <button className="absolute bottom-0 right-0 h-8 w-8 bg-primary rounded-full flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity">

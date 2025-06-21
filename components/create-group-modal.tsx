@@ -105,9 +105,9 @@ export function CreateGroupModal({ open, onClose, onCreateGroup, currentUser, al
                           key={user.uid || user.id}
                           className="flex items-center gap-1 bg-primary/10 rounded-full pl-1 pr-2 py-1"
                         >
-                          <Avatar className="h-6 w-6">
-                            <AvatarImage src={user.photoURL || user.avatar || "/placeholder.svg"} alt={user.displayName || user.name} />
-                            <AvatarFallback>{(user.displayName || user.name).charAt(0)}</AvatarFallback>
+                          <Avatar className="h-8 w-8">
+                            <AvatarImage src={user.photoURL || user.avatar || "/placeholder.svg"} alt={user.displayName || user.name} className="object-cover" />
+                            <AvatarFallback>{user.displayName?.[0] || user.name?.[0]}</AvatarFallback>
                           </Avatar>
                           <span className="text-xs">{user.displayName || user.name}</span>
                           <button
@@ -133,9 +133,9 @@ export function CreateGroupModal({ open, onClose, onCreateGroup, currentUser, al
                     onClick={() => handleSelectUser(user.uid || user.id)}
                   >
                     <div className="relative">
-                      <Avatar className="h-10 w-10">
-                        <AvatarImage src={user.photoURL || user.avatar || "/placeholder.svg"} alt={user.displayName || user.name} />
-                        <AvatarFallback>{(user.displayName || user.name).charAt(0)}</AvatarFallback>
+                      <Avatar className="h-8 w-8">
+                        <AvatarImage src={user.photoURL || user.avatar || "/placeholder.svg"} alt={user.displayName || user.name} className="object-cover" />
+                        <AvatarFallback>{user.displayName?.[0] || user.name?.[0]}</AvatarFallback>
                       </Avatar>
                       {selectedUsers.includes(user.uid || user.id) && (
                         <div className="absolute -right-1 -bottom-1 h-5 w-5 bg-primary rounded-full flex items-center justify-center text-white">
@@ -213,9 +213,9 @@ export function CreateGroupModal({ open, onClose, onCreateGroup, currentUser, al
 
                     return (
                       <div key={user.uid || user.id} className="flex items-center gap-1 bg-primary/10 rounded-full pl-1 pr-2 py-1">
-                        <Avatar className="h-6 w-6">
-                          <AvatarImage src={user.photoURL || user.avatar || "/placeholder.svg"} alt={user.displayName || user.name} />
-                          <AvatarFallback>{(user.displayName || user.name).charAt(0)}</AvatarFallback>
+                        <Avatar className="h-8 w-8">
+                          <AvatarImage src={user.photoURL || user.avatar || "/placeholder.svg"} alt={user.displayName || user.name} className="object-cover" />
+                          <AvatarFallback>{user.displayName?.[0] || user.name?.[0]}</AvatarFallback>
                         </Avatar>
                         <span className="text-xs">{user.displayName || user.name}</span>
                         <button

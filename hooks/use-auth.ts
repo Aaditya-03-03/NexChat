@@ -117,6 +117,22 @@ export function useAuth() {
     }
   };
 
+  const refreshUserProfile = async () => {
+    if (!user) return { success: false, error: 'No user logged in' };
+    
+    try {
+      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      if (userDoc.exists()) {
+        setUserProfile(userDoc.data() as UserProfile);
+        return { success: true, profile: userDoc.data() };
+      } else {
+        return { success: false, error: 'User profile not found' };
+      }
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  };
+
   return {
     user,
     userProfile,
@@ -125,5 +141,6 @@ export function useAuth() {
     signUp,
     signInWithGoogle,
     logout,
+    refreshUserProfile,
   };
 } 

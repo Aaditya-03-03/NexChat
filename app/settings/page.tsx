@@ -207,10 +207,8 @@ export default function SettingsPage() {
                 <CardContent className="space-y-4">
                   <div className="flex items-center gap-4">
                     <Avatar className="h-16 w-16">
-                      <AvatarImage src={userProfile?.photoURL} />
-                      <AvatarFallback>
-                        <User className="h-8 w-8" />
-                      </AvatarFallback>
+                      <AvatarImage src={userProfile?.photoURL} className="object-cover" />
+                      <AvatarFallback className="text-lg">{userProfile?.displayName?.[0]}</AvatarFallback>
                     </Avatar>
                     <div className="flex-1">
                       <h3 className="font-medium text-lg">{userProfile?.displayName || "User"}</h3>

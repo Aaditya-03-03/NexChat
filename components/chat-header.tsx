@@ -158,7 +158,7 @@ export function ChatHeader({
                 </div>
               ) : (
                 <>
-                  <AvatarImage src="/placeholder.svg" alt={chat.name || "User"} />
+                  <AvatarImage src="/placeholder.svg" alt={chat.name || "User"} className="object-cover" />
                   <AvatarFallback className="bg-gradient-to-br from-primary/20 to-primary/40">
                     {(chat.name || "U").charAt(0).toUpperCase()}
                   </AvatarFallback>

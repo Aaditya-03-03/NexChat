@@ -52,11 +52,9 @@ export function ChatLayout({ children }: ChatLayoutProps) {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="h-8 sm:h-10 px-2 sm:px-3 rounded-xl hover:bg-primary/10">
-                <Avatar className="h-6 w-6 sm:h-7 sm:w-7 mr-2">
-                  <AvatarImage src={userProfile?.photoURL} alt={userProfile?.displayName} />
-                  <AvatarFallback className="text-xs">
-                    {userProfile?.displayName?.charAt(0) || user?.email?.charAt(0) || "U"}
-                  </AvatarFallback>
+                <Avatar className="h-8 w-8">
+                  <AvatarImage src={userProfile?.photoURL} alt={userProfile?.displayName} className="object-cover" />
+                  <AvatarFallback>{userProfile?.displayName?.[0]}</AvatarFallback>
                 </Avatar>
                 <span className="hidden sm:block text-sm font-medium truncate max-w-24">
                   {userProfile?.displayName || user?.email?.split('@')[0] || "User"}

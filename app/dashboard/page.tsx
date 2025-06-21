@@ -52,11 +52,15 @@ import {
   Database
 } from "lucide-react"
 import { toast } from "sonner"
-import { doc, getDoc, getDocs, collection } from "firebase/firestore"
+import { doc, getDoc, getDocs, collection, Firestore } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import { cn } from "@/lib/utils"
 import { CreateGroupModal } from "@/components/create-group-modal"
 import { UserProfileModal } from "@/components/user-profile-modal"
+import { ProfilePhotoViewer } from "@/components/profile-photo-viewer"
+import { useProfilePhotoViewer } from "@/hooks/use-profile-photo-viewer"
+
+const dbInstance: Firestore = db;
 
 // Custom hook for debounced search
 function useDebounce<T>(value: T, delay: number): T {
@@ -76,13 +80,13 @@ function useDebounce<T>(value: T, delay: number): T {
 }
 
 export default function DashboardPage() {
-  const { user, userProfile } = useAuthContext()
+  const { user, userProfile, loading } = useAuthContext()
+  const { isOpen, photoURL, userName, userId, openViewer, closeViewer } = useProfilePhotoViewer()
   const { t } = useLanguage()
   const [chats, setChats] = useState<Chat[]>([])
   const [selectedChat, setSelectedChat] = useState<Chat | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
   const [showProfile, setShowProfile] = useState(false)
-  const [loading, setLoading] = useState(true)
   const [chatLoading, setChatLoading] = useState(false)
   const [isMobileView, setIsMobileView] = useState(false)
   const [showChatList, setShowChatList] = useState(true)
@@ -90,7 +94,10 @@ export default function DashboardPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [chatSearchQuery, setChatSearchQuery] = useState("")
   const [allUsers, setAllUsers] = useState<any[]>([])
+  const [selectedUsers, setSelectedUsers] = useState<string[]>([])
+  const [groupName, setGroupName] = useState("")
   const [userNames, setUserNames] = useState<{[key: string]: string}>({})
+  const [userProfiles, setUserProfiles] = useState<{[key: string]: {displayName: string, photoURL?: string}}>({})
   const [userNamesLoading, setUserNamesLoading] = useState(false)
   
   // Debounced search queries
@@ -154,7 +161,6 @@ export default function DashboardPage() {
 
     const unsubscribe = ChatService.subscribeToUserChats(user.uid, (userChats) => {
       setChats(userChats)
-      setLoading(false)
     })
 
     return unsubscribe
@@ -199,6 +205,7 @@ export default function DashboardPage() {
       
       setUserNamesLoading(true)
       const names: {[key: string]: string} = { ...userNames }
+      const profiles: {[key: string]: any} = { ...userProfiles }
       const userIdsToFetch: string[] = []
       
       // Collect unique user IDs that need fetching
@@ -211,23 +218,27 @@ export default function DashboardPage() {
         }
       }
       
-      // Batch fetch user names
+      // Batch fetch user names and profiles
       if (userIdsToFetch.length > 0) {
         try {
           const userDocs = await Promise.all(
-            userIdsToFetch.map(userId => getDoc(doc(db, 'users', userId)))
+            userIdsToFetch.map(userId => getDoc(doc(dbInstance, 'users', userId)))
           )
           
           userDocs.forEach((userDoc, index) => {
             const userId = userIdsToFetch[index]
             if (userDoc.exists()) {
-              names[userId] = userDoc.data().displayName || 'Unknown User'
+              const userData = userDoc.data()
+              names[userId] = userData.displayName || 'Unknown User'
+              profiles[userId] = userData
             } else {
               names[userId] = 'Unknown User'
+              profiles[userId] = { displayName: 'Unknown User', photoURL: '' }
             }
           })
           
           setUserNames(names)
+          setUserProfiles(profiles)
         } catch (error) {
           console.error('Error fetching user names:', error)
         }
@@ -354,32 +365,49 @@ export default function DashboardPage() {
     }
   }, [user])
 
-  const handleSendMessage = async (content: string, type: 'text' | 'image' | 'file' | 'voice' | 'video' | 'location' = 'text', fileUrl?: string, shortUrl?: string) => {
-    if (!selectedChat || !user || !userProfile) return
+  const handleSendMessage = async (
+    content: string, 
+    type: 'text' | 'image' | 'file' | 'voice' | 'video' | 'location' = 'text', 
+    fileUrl?: string, 
+    shortUrl?: string,
+    messageData?: Partial<Message>
+  ) => {
+    if (!selectedChat || !user) return
 
-    const messageData: any = {
-      chatId: selectedChat.id,
+    const finalMessageData = {
       userId: user.uid,
-      userDisplayName: userProfile.displayName,
-      userPhotoURL: userProfile.photoURL,
+      userDisplayName: user.displayName || "Anonymous",
+      userPhotoURL: user.photoURL || "",
       content: fileUrl || content,
       type,
+      originalUrl: fileUrl,
+      shortUrl: shortUrl,
+      ...(messageData || {}),
+    };
+
+    // For text messages, we can do an optimistic update
+    if (type === 'text') {
+      setMessages(prev => [...prev, {
+        id: Date.now().toString(),
+        chatId: selectedChat.id,
+        status: 'sent',
+        timestamp: new Date(), // This will be replaced by server timestamp
+        readBy: [user.uid],
+        deliveredTo: [],
+        ...finalMessageData,
+      } as Message]);
     }
 
-    // Only include URL fields if they have values
-    if (fileUrl) {
-      messageData.originalUrl = fileUrl
-    }
-    if (shortUrl) {
-      messageData.shortUrl = shortUrl
-    }
+    const result = await ChatService.sendMessage(selectedChat.id, finalMessageData as Omit<Message, 'id' | 'timestamp' | 'readBy' | 'deliveredTo' | 'status'>);
 
-    const result = await ChatService.sendMessage(selectedChat.id, messageData)
-    
     if (!result.success) {
-      toast.error(result.error || "Failed to send message")
+      toast.error(result.error || "Failed to send message");
+      // If optimistic update was done, revert it. A more robust way would be to find and remove the specific message.
+      if (type === 'text') {
+        setMessages(prev => prev.filter(m => m.content !== content));
+      }
     }
-  }
+  };
 
   const handleCreateDirectChat = async (otherUserId: string) => {
     console.log('Dashboard: handleCreateDirectChat called with otherUserId:', otherUserId, 'current user:', user?.uid);
@@ -503,13 +531,14 @@ export default function DashboardPage() {
   }
 
   const handleProfileUpdate = (updatedProfile: any) => {
-    // Update user profile logic here
+    // Update the current user's profile in the cache
+    if (user) {
+      setUserProfiles(prev => ({
+        ...prev,
+        [user.uid]: updatedProfile
+      }))
+    }
     toast.success("Profile updated successfully")
-    setShowProfileEditor(false)
-    
-    // Update the userProfile in the auth context
-    // This would typically be done through the auth context
-    // For now, we'll just show a success message
   }
 
   const handlePrivacyUpdate = (settings: any) => {
@@ -622,6 +651,23 @@ export default function DashboardPage() {
     return selectedChat.id // For group, use chat id
   }
 
+  const getOtherUserPhotoURL = (chat: Chat): string | null => {
+    if (!chat || !user) return null
+    if (chat.type === 'direct') {
+      const otherUserId = chat.participants.find(p => p !== user?.uid)
+      if (otherUserId) {
+        // Try to get from userProfiles cache
+        const cachedUser = userProfiles[otherUserId]
+        if (cachedUser && cachedUser.photoURL) {
+          return cachedUser.photoURL
+        }
+        // If not in cache, return null and let the component handle it
+        return null
+      }
+    }
+    return null
+  }
+
   if (loading) {
     return (
       <ProtectedRoute>
@@ -706,7 +752,19 @@ export default function DashboardPage() {
                                     </div>
                                   ) : (
                                     <>
-                                      <AvatarImage src="/placeholder.svg" alt={getChatDisplayName(chat)} />
+                                      <AvatarImage 
+                                        src={getOtherUserPhotoURL(chat) || "/placeholder.svg"} 
+                                        alt={getChatDisplayName(chat)} 
+                                        className="object-cover cursor-pointer hover:opacity-80 transition-opacity"
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          const photoURL = getOtherUserPhotoURL(chat)
+                                          if (photoURL && chat.type === 'direct') {
+                                            const otherUserId = chat.participants.find(p => p !== user?.uid)
+                                            openViewer(photoURL, getChatDisplayName(chat), otherUserId || undefined)
+                                          }
+                                        }}
+                                      />
                                       <AvatarFallback className="bg-gradient-to-br from-muted to-muted/50 text-lg font-semibold">
                                         {getChatDisplayName(chat).charAt(0)}
                                       </AvatarFallback>
@@ -781,10 +839,11 @@ export default function DashboardPage() {
                     messages={messages}
                     onSendMessage={handleSendMessage}
                     onShowProfile={() => setShowProfile(true)}
-                    onBackToChatList={() => setSelectedChat(null)}
+                    onBackToChatList={undefined}
                     onDeleteChat={handleDeleteChat}
                     currentUser={userProfile}
                     chatDisplayName={getChatDisplayName(selectedChat)}
+                    otherUserPhotoURL={getOtherUserPhotoURL(selectedChat)}
                   />
                 )
               )}
@@ -878,9 +937,9 @@ export default function DashboardPage() {
                         className="flex items-center gap-4 p-4 rounded-xl hover:bg-muted/50 cursor-pointer transition-all active:scale-95"
                         onClick={() => handleCreateDirectChat(contact.uid)}
                       >
-                        <Avatar className="h-16 w-16 ring-2 ring-background">
-                          <AvatarImage src={contact.photoURL} />
-                          <AvatarFallback className="bg-gradient-to-br from-muted to-muted/50 text-lg font-semibold">
+                        <Avatar className="h-12 w-12 ring-2 ring-background">
+                          <AvatarImage src={contact.photoURL} className="object-cover" />
+                          <AvatarFallback className="bg-gradient-to-br from-muted to-muted/50 text-sm font-semibold">
                             {contact.displayName?.charAt(0)}
                           </AvatarFallback>
                         </Avatar>
@@ -1041,7 +1100,19 @@ export default function DashboardPage() {
                                       </div>
                                     ) : (
                                       <>
-                                        <AvatarImage src="/placeholder.svg" alt={getChatDisplayName(chat)} />
+                                        <AvatarImage 
+                                          src={getOtherUserPhotoURL(chat) || "/placeholder.svg"} 
+                                          alt={getChatDisplayName(chat)} 
+                                          className="object-cover cursor-pointer hover:opacity-80 transition-opacity"
+                                          onClick={(e) => {
+                                            e.stopPropagation()
+                                            const photoURL = getOtherUserPhotoURL(chat)
+                                            if (photoURL && chat.type === 'direct') {
+                                              const otherUserId = chat.participants.find(p => p !== user?.uid)
+                                              openViewer(photoURL, getChatDisplayName(chat), otherUserId || undefined)
+                                            }
+                                          }}
+                                        />
                                         <AvatarFallback className="bg-gradient-to-br from-muted to-muted/50 text-lg font-semibold">
                                           {getChatDisplayName(chat).charAt(0)}
                                         </AvatarFallback>
@@ -1198,9 +1269,9 @@ export default function DashboardPage() {
                             className="flex items-center gap-4 p-4 rounded-xl hover:bg-muted/50 cursor-pointer transition-all active:scale-95"
                             onClick={() => handleCreateDirectChat(contact.uid)}
                           >
-                            <Avatar className="h-16 w-16 ring-2 ring-background">
-                              <AvatarImage src={contact.photoURL} />
-                              <AvatarFallback className="bg-gradient-to-br from-muted to-muted/50 text-lg font-semibold">
+                            <Avatar className="h-12 w-12 ring-2 ring-background">
+                              <AvatarImage src={contact.photoURL} className="object-cover" />
+                              <AvatarFallback className="bg-gradient-to-br from-muted to-muted/50 text-sm font-semibold">
                                 {contact.displayName?.charAt(0)}
                               </AvatarFallback>
                             </Avatar>
@@ -1312,6 +1383,7 @@ export default function DashboardPage() {
                     onDeleteChat={handleDeleteChat}
                     currentUser={userProfile}
                     chatDisplayName={getChatDisplayName(selectedChat)}
+                    otherUserPhotoURL={getOtherUserPhotoURL(selectedChat)}
                   />
                 )
               ) : (
@@ -1472,6 +1544,44 @@ export default function DashboardPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Profile Photo Viewer */}
+      <ProfilePhotoViewer
+        isOpen={isOpen}
+        onClose={closeViewer}
+        photoURL={photoURL}
+        userName={userName}
+        userId={userId}
+        onMessage={() => {
+          closeViewer()
+          // Find the chat with this user and select it
+          if (userId) {
+            const chat = chats.find(c => c.type === 'direct' && c.participants.includes(userId))
+            if (chat) {
+              setSelectedChat(chat)
+            } else {
+              // Create a new chat if it doesn't exist
+              handleCreateDirectChat(userId)
+            }
+          }
+        }}
+        onAudioCall={() => {
+          closeViewer()
+          toast.info("Audio call feature coming soon!")
+        }}
+        onVideoCall={() => {
+          closeViewer()
+          toast.info("Video call feature coming soon!")
+        }}
+        onInfo={() => {
+          closeViewer()
+          if (userId) {
+            // Show user profile modal
+            // You could implement this by setting a state to show the profile modal
+            toast.info("Profile info feature coming soon!")
+          }
+        }}
+      />
     </ProtectedRoute>
   )
 } 

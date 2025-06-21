@@ -40,14 +40,14 @@ export function ShortLinkDisplay({
   if (variant === 'compact') {
     return (
       <div className={cn("flex items-center gap-2 text-xs text-muted-foreground bg-background/20 rounded px-2 py-1", className)}>
-        <span className="font-medium">Link:</span>
-        <span className="truncate flex-1">{shortUrl}</span>
+        <span className="font-medium flex-shrink-0">Link:</span>
+        <span className="truncate flex-1 min-w-0 break-all">{shortUrl}</span>
         {showCopyButton && (
           <Button
             variant="ghost"
             size="sm"
             onClick={handleCopy}
-            className="h-4 w-4 p-0 hover:bg-background/40"
+            className="h-4 w-4 p-0 hover:bg-background/40 flex-shrink-0"
           >
             {copied ? (
               <Check className="h-3 w-3 text-green-500" />
@@ -61,7 +61,7 @@ export function ShortLinkDisplay({
             variant="ghost"
             size="sm"
             onClick={handleOpen}
-            className="h-4 w-4 p-0 hover:bg-background/40"
+            className="h-4 w-4 p-0 hover:bg-background/40 flex-shrink-0"
           >
             <ExternalLink className="h-3 w-3" />
           </Button>
@@ -74,9 +74,9 @@ export function ShortLinkDisplay({
     <div className={cn("flex items-center gap-2 p-2 bg-background/20 rounded-lg", className)}>
       <div className="flex-1 min-w-0">
         <span className="text-sm font-medium block">Short Link</span>
-        <span className="text-xs text-muted-foreground truncate block">{shortUrl}</span>
+        <span className="text-xs text-muted-foreground break-all block">{shortUrl}</span>
       </div>
-      <div className="flex gap-1">
+      <div className="flex gap-1 flex-shrink-0">
         {showCopyButton && (
           <Button
             variant="ghost"

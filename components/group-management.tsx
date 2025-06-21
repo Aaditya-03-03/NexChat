@@ -175,7 +175,7 @@ export function GroupManagement({ chat, currentUser, onClose, onUpdate }: GroupM
                     >
                       <div className="flex items-center gap-3">
                         <Avatar className="h-8 w-8">
-                          <AvatarImage src={participant.photoURL} />
+                          <AvatarImage src={participant.photoURL} className="object-cover" />
                           <AvatarFallback>{participant.displayName?.charAt(0)}</AvatarFallback>
                         </Avatar>
                         <div>
@@ -237,7 +237,7 @@ export function GroupManagement({ chat, currentUser, onClose, onUpdate }: GroupM
                     >
                       <div className="flex items-center gap-3">
                         <Avatar className="h-8 w-8">
-                          <AvatarImage src={user.photoURL} />
+                          <AvatarImage src={user.photoURL} className="object-cover" />
                           <AvatarFallback>{user.displayName?.charAt(0)}</AvatarFallback>
                         </Avatar>
                         <div>

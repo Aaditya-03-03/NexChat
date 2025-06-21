@@ -190,13 +190,17 @@ export class ChatService {
   }
 
   // Send a message
-  static async sendMessage(chatId: string, message: Omit<Message, 'id' | 'timestamp' | 'readBy' | 'deliveredTo'>) {
+  static async sendMessage(
+    chatId: string, 
+    message: Omit<Message, 'id' | 'timestamp' | 'readBy' | 'deliveredTo' | 'status'>
+  ) {
     try {
       const messagesRef = collection(db, 'chats', chatId, 'messages');
+      
       const messageData = {
         ...message,
         timestamp: serverTimestamp(),
-        status: 'sent',
+        status: 'sent' as const,
         deliveredTo: [],
         readBy: [message.userId],
       };
