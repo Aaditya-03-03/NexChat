@@ -367,14 +367,8 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
     <div className="flex-1 flex flex-col glass-card rounded-none md:rounded-l-2xl overflow-hidden animate-slide-from-right h-full">
       {/* Chat header */}
       <div className="flex items-center justify-between p-2 sm:p-3 md:p-4 lg:p-5 border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div
-          className="flex items-center gap-1.5 sm:gap-2 md:gap-3 cursor-pointer min-w-0 flex-1"
-          role="button"
-          tabIndex={0}
-          onClick={onShowProfile}
-          onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') onShowProfile(); }}
-        >
-          {/* Back button - show on mobile or when onBackToChatList is provided */}
+        <div className="flex items-center gap-1.5 sm:gap-2 md:gap-3 min-w-0 flex-1">
+          {/* Back button - always show if onBackToChatList is provided */}
           {onBackToChatList && (
             <Button
               variant="ghost"

@@ -821,7 +821,7 @@ export default function DashboardPage() {
                     messages={messages}
                     onSendMessage={handleSendMessage}
                     onShowProfile={() => setShowProfile(true)}
-                    onBackToChatList={undefined}
+                    onBackToChatList={handleBackToChatList}
                     onDeleteChat={handleDeleteChat}
                     currentUser={userProfile}
                     chatDisplayName={getChatDisplayName(selectedChat)}
@@ -1361,7 +1361,7 @@ export default function DashboardPage() {
                     messages={messages}
                     onSendMessage={handleSendMessage}
                     onShowProfile={() => setShowProfile(true)}
-                    onBackToChatList={undefined}
+                    onBackToChatList={handleBackToChatList}
                     onDeleteChat={handleDeleteChat}
                     currentUser={userProfile}
                     chatDisplayName={getChatDisplayName(selectedChat)}
