@@ -61,6 +61,9 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
   const [isUploadingVideo, setIsUploadingVideo] = useState(false)
   const [playingVideoId, setPlayingVideoId] = useState<string | null>(null)
 
+  // Call modal state
+  const [callModal, setCallModal] = useState<{ type: 'audio' | 'video'; direction: 'outgoing' | 'incoming'; visible: boolean } | null>(null)
+
   // Get chat display name from chat object
   const chatDisplayNameMemo = useMemo(() => {
     // Use the passed chatDisplayName prop if available
@@ -143,11 +146,8 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
           if (FileService.isImage(selectedFile)) {
             result = await FileService.uploadImage(selectedFile, chat.id);
             type = 'image';
-          } else if (FileService.isDocument(selectedFile)) {
-            result = await FileService.uploadDocument(selectedFile, chat.id);
-            type = 'file';
           } else {
-            result = await FileService.uploadFile(selectedFile, chat.id);
+            result = await FileService.uploadDocument(selectedFile, chat.id);
             type = 'file';
           }
 
@@ -265,8 +265,10 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
     setShowAttachMenu(false)
   }, [])
 
-  const handleFileUploadComplete = useCallback((url: string, type: 'image' | 'file', shortUrl?: string) => {
-    onSendMessage(selectedFile?.name || '', type, url, shortUrl)
+  const handleFileUploadComplete = useCallback((url: string, type: 'image' | 'file' | 'video' | 'voice', shortUrl?: string) => {
+    if (type === 'image' || type === 'file') {
+      onSendMessage(selectedFile?.name || '', type, url, shortUrl)
+    }
     setSelectedFile(null)
   }, [selectedFile, onSendMessage])
 
@@ -286,7 +288,7 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
     try {
       const result = await FileService.uploadVideo(selectedVideo, chat.id)
       if (result.success && result.url) {
-        onSendMessage(selectedVideo.name, 'video', result.url, result.shortUrl)
+        onSendMessage(selectedVideo.name, 'file', result.url, result.shortUrl)
         setSelectedVideo(null)
       } else {
         toast.error(result.error || 'Failed to upload video')
@@ -313,7 +315,7 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
             }
             
             const locationString = JSON.stringify(locationData)
-            onSendMessage(locationString, 'location')
+            onSendMessage(locationString, 'text')
             setShowAttachMenu(false)
           } catch (error) {
             toast.error("Failed to share location")
@@ -424,13 +426,31 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
             <Search className="h-3.5 w-3.5 sm:h-4 sm:w-4 md:h-5 md:w-5" />
             <span className="sr-only">Search messages</span>
           </Button>
+          {chat.type === 'direct' && (
+            <>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setCallModal({ type: 'video', direction: 'outgoing', visible: true })}
+                className="h-7 w-7 sm:h-8 sm:w-8 md:h-9 md:w-9 lg:h-10 lg:w-10 rounded-full hover:bg-primary/10"
+                title="Video call"
+              >
+                <Video className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setCallModal({ type: 'audio', direction: 'outgoing', visible: true })}
+                className="h-7 w-7 sm:h-8 sm:w-8 md:h-9 md:w-9 lg:h-10 lg:w-10 rounded-full hover:bg-primary/10"
+                title="Audio call"
+              >
+                <Phone className="h-4 w-4" />
+              </Button>
+            </>
+          )}
           <Button variant="ghost" size="icon" className="h-7 w-7 sm:h-8 sm:w-8 md:h-9 md:w-9 lg:h-10 lg:w-10 rounded-full hover:bg-primary/10">
             <Phone className="h-3.5 w-3.5 sm:h-4 sm:w-4 md:h-5 md:w-5" />
             <span className="sr-only">Voice call</span>
-          </Button>
-          <Button variant="ghost" size="icon" className="h-7 w-7 sm:h-8 sm:w-8 md:h-9 md:w-9 lg:h-10 lg:w-10 rounded-full hover:bg-primary/10">
-            <Video className="h-3.5 w-3.5 sm:h-4 sm:w-4 md:h-5 md:w-5" />
-            <span className="sr-only">Video call</span>
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -1058,6 +1078,40 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
           onShowProfile()
         }}
       />
+
+      {/* Call modal */}
+      {callModal?.visible && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="bg-background rounded-2xl shadow-2xl p-8 flex flex-col items-center min-w-[320px] max-w-xs">
+            <Avatar className="h-20 w-20 mb-4">
+              <AvatarImage src={otherUserPhotoURL || '/placeholder-user.jpg'} alt={chatDisplayNameMemo} />
+              <AvatarFallback>{chatDisplayNameMemo.charAt(0)}</AvatarFallback>
+            </Avatar>
+            <div className="text-center mb-2">
+              <div className="font-semibold text-lg">{chatDisplayNameMemo}</div>
+              <div className="text-muted-foreground text-sm mb-1">
+                {callModal.direction === 'outgoing' ? (callModal.type === 'audio' ? 'Calling (Audio)...' : 'Calling (Video)...') : (callModal.type === 'audio' ? 'Incoming Audio Call...' : 'Incoming Video Call...')}
+              </div>
+            </div>
+            <div className="flex gap-4 mt-4">
+              {callModal.direction === 'incoming' ? (
+                <>
+                  <Button size="lg" className="bg-green-500 hover:bg-green-600 text-white rounded-full" onClick={() => setCallModal(null)}>
+                    Accept
+                  </Button>
+                  <Button size="lg" className="bg-red-500 hover:bg-red-600 text-white rounded-full" onClick={() => setCallModal(null)}>
+                    Decline
+                  </Button>
+                </>
+              ) : (
+                <Button size="lg" className="bg-red-500 hover:bg-red-600 text-white rounded-full" onClick={() => setCallModal(null)}>
+                  End Call
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
