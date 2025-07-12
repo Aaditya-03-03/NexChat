@@ -359,7 +359,7 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
       case 'delivered':
         return <span className="text-xs md:text-sm font-medium opacity-90 text-muted-foreground">✓✓</span>;
       case 'read':
-        return <span className="text-xs md:text-sm font-medium opacity-90 dark:text-blue-400 text-blue-600">✓✓</span>;
+        return <span className="text-xs md:text-sm font-medium opacity-90" style={{ color: '#50b8e3' }}>✓✓</span>;
       default:
         return <span className="text-xs md:text-sm font-medium opacity-90 text-muted-foreground">✓</span>;
     }
@@ -448,10 +448,6 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
               </Button>
             </>
           )}
-          <Button variant="ghost" size="icon" className="h-7 w-7 sm:h-8 sm:w-8 md:h-9 md:w-9 lg:h-10 lg:w-10 rounded-full hover:bg-primary/10">
-            <Phone className="h-3.5 w-3.5 sm:h-4 sm:w-4 md:h-5 md:w-5" />
-            <span className="sr-only">Voice call</span>
-          </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="h-7 w-7 sm:h-8 sm:w-8 md:h-9 md:w-9 lg:h-10 lg:w-10 rounded-full hover:bg-primary/10">
@@ -559,11 +555,12 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
                     className={cn(
                       "group relative px-2 py-1.5 sm:px-3 sm:py-2 md:px-4 md:py-3 rounded-2xl text-xs sm:text-sm md:text-base",
                       isMyMsg 
-                        ? "bg-primary text-primary-foreground ml-2 sm:ml-4" 
+                        ? "text-white ml-2 sm:ml-4" 
                         : "bg-muted text-foreground mr-2 sm:mr-4",
                       !isFirstInGroup && isMyMsg && "rounded-tr-xl",
                       !isFirstInGroup && !isMyMsg && "rounded-tl-xl",
                     )}
+                    style={isMyMsg ? { backgroundColor: '#144d37' } : undefined}
                   >
                     {/* Message content */}
                     {editingMessage?.id === message.id ? (

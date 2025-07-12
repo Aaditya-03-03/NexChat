@@ -132,6 +132,7 @@ export default function DashboardPage() {
   // Add a state for the selected profile userId
   const [showProfileModal, setShowProfileModal] = useState(false)
   const [profileUserId, setProfileUserId] = useState<string | null>(null)
+  const [selectedProfileUserId, setSelectedProfileUserId] = useState<string | null>(null)
 
   // Check if we're on mobile
   useEffect(() => {
@@ -626,6 +627,12 @@ export default function DashboardPage() {
   // Replace the sidebar UserProfile with the modal
   // Find the userId for the selected chat (for direct chat, it's the other participant)
   const getProfileUserId = () => {
+    // If we have a stored profile user ID, use it
+    if (selectedProfileUserId) {
+      return selectedProfileUserId
+    }
+    
+    // Otherwise, get from selected chat
     if (!selectedChat) return null
     if (selectedChat.type === 'direct') {
       return selectedChat.participants.find(p => p !== user?.uid) || null
@@ -820,7 +827,13 @@ export default function DashboardPage() {
                     chat={selectedChat}
                     messages={messages}
                     onSendMessage={handleSendMessage}
-                    onShowProfile={() => setShowProfile(true)}
+                    onShowProfile={() => {
+                      const userId = getProfileUserId()
+                      if (userId) {
+                        setSelectedProfileUserId(userId)
+                        setShowProfile(true)
+                      }
+                    }}
                     onBackToChatList={handleBackToChatList}
                     onDeleteChat={handleDeleteChat}
                     currentUser={userProfile}
@@ -1360,7 +1373,13 @@ export default function DashboardPage() {
                     chat={selectedChat}
                     messages={messages}
                     onSendMessage={handleSendMessage}
-                    onShowProfile={() => setShowProfile(true)}
+                    onShowProfile={() => {
+                      const userId = getProfileUserId()
+                      if (userId) {
+                        setSelectedProfileUserId(userId)
+                        setShowProfile(true)
+                      }
+                    }}
                     onBackToChatList={handleBackToChatList}
                     onDeleteChat={handleDeleteChat}
                     currentUser={userProfile}
@@ -1408,11 +1427,14 @@ export default function DashboardPage() {
           </div>
         )}
         
-        {showProfile && selectedChat && (
+        {showProfile && (
           <UserProfileModal
             userId={getProfileUserId() || ''}
             isOpen={showProfile}
-            onClose={() => setShowProfile(false)}
+            onClose={() => {
+              setShowProfile(false)
+              setSelectedProfileUserId(null)
+            }}
             userStatus={undefined} // Optionally pass user status if available
           />
         )}
