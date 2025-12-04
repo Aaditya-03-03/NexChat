@@ -25,6 +25,10 @@ import { ShortLinkDisplay } from "@/components/short-link-display"
 import { Video as VideoIcon } from "lucide-react"
 import { ProfilePhotoViewer } from "@/components/profile-photo-viewer"
 import { useProfilePhotoViewer } from "@/hooks/use-profile-photo-viewer"
+import { JitsiCall } from "@/components/jitsi-call"
+import { useJitsiCall } from "@/hooks/use-jitsi-call"
+import { IncomingCallNotification } from "@/components/incoming-call-notification"
+import { OutgoingCallNotification } from "@/components/outgoing-call-notification"
 
 interface ChatWindowProps {
   chat: Chat
@@ -40,10 +44,11 @@ interface ChatWindowProps {
 
 export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBackToChatList, onDeleteChat, currentUser, chatDisplayName, otherUserPhotoURL }: ChatWindowProps) {
   console.log('ChatWindow rendered with chat:', chat?.id, 'messages:', messages?.length, 'currentUser:', !!currentUser)
-  
+
   const router = useRouter()
   const { logout } = useAuthContext()
   const { isOpen, photoURL, userName, userId, openViewer, closeViewer } = useProfilePhotoViewer()
+  const { callState, incomingCall, outgoingCall, startCall, endCall, initiateCall, acceptCall, rejectCall, cancelCall } = useJitsiCall(currentUser?.uid)
   const [newMessage, setNewMessage] = useState("")
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const [showAttachMenu, setShowAttachMenu] = useState(false)
@@ -55,14 +60,11 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [isUploading, setIsUploading] = useState(false)
   const [isLeavingGroup, setIsLeavingGroup] = useState(false)
-  
+
   // Video upload states
   const [selectedVideo, setSelectedVideo] = useState<File | null>(null)
   const [isUploadingVideo, setIsUploadingVideo] = useState(false)
   const [playingVideoId, setPlayingVideoId] = useState<string | null>(null)
-
-  // Call modal state
-  const [callModal, setCallModal] = useState<{ type: 'audio' | 'video'; direction: 'outgoing' | 'incoming'; visible: boolean } | null>(null)
 
   // Get chat display name from chat object
   const chatDisplayNameMemo = useMemo(() => {
@@ -70,7 +72,7 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
     if (chatDisplayName) {
       return chatDisplayName
     }
-    
+
     if (chat.type === 'group') {
       return chat.name || 'Group Chat'
     } else {
@@ -153,9 +155,9 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
 
           if (result.success && result.url) {
             onSendMessage(
-              newMessage.trim() || selectedFile.name, 
-              type, 
-              result.url, 
+              newMessage.trim() || selectedFile.name,
+              type,
+              result.url,
               result.shortUrl,
               messageData
             );
@@ -305,7 +307,7 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
       navigator.geolocation.getCurrentPosition(
         async (position) => {
           const { latitude, longitude } = position.coords
-          
+
           try {
             // Get address from coordinates (you might want to use a geocoding service)
             const locationData = {
@@ -313,7 +315,7 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
               longitude,
               address: `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`
             }
-            
+
             const locationString = JSON.stringify(locationData)
             onSendMessage(locationString, 'text')
             setShowAttachMenu(false)
@@ -333,15 +335,15 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
   const handleMessageSelect = useCallback((message: Message) => {
     // Close the search overlay
     setShowSearch(false)
-    
+
     // Find the message element and scroll to it
     const messageElement = document.getElementById(`message-${message.id}`)
     if (messageElement) {
-      messageElement.scrollIntoView({ 
-        behavior: 'smooth', 
-        block: 'center' 
+      messageElement.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center'
       })
-      
+
       // Add a temporary highlight effect
       messageElement.classList.add('ring-2', 'ring-primary', 'ring-opacity-50')
       setTimeout(() => {
@@ -392,9 +394,9 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
                 </div>
               ) : (
                 <>
-                  <AvatarImage 
-                    src={otherUserPhotoURL || "/placeholder.svg"} 
-                    alt={chatDisplayNameMemo} 
+                  <AvatarImage
+                    src={otherUserPhotoURL || "/placeholder.svg"}
+                    alt={chatDisplayNameMemo}
                     className="object-cover cursor-pointer hover:opacity-80 transition-opacity"
                     onClick={(e) => {
                       e.stopPropagation()
@@ -417,9 +419,9 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
           </div>
         </div>
         <div className="flex items-center gap-0.5 sm:gap-1 flex-shrink-0">
-          <Button 
-            variant="ghost" 
-            size="icon" 
+          <Button
+            variant="ghost"
+            size="icon"
             onClick={() => setShowSearch(!showSearch)}
             className="h-7 w-7 sm:h-8 sm:w-8 md:h-9 md:w-9 lg:h-10 lg:w-10 rounded-full hover:bg-primary/10"
           >
@@ -431,7 +433,21 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={() => setCallModal({ type: 'video', direction: 'outgoing', visible: true })}
+                onClick={() => {
+                  const otherUserId = chat.participants.find(p => p !== currentUser?.uid)
+                  if (otherUserId) {
+                    initiateCall(
+                      chat.id,
+                      'video',
+                      currentUser.uid,
+                      currentUser.displayName || currentUser.email || 'You',
+                      otherUserId,
+                      chatDisplayNameMemo,
+                      otherUserPhotoURL || undefined,
+                      currentUser.photoURL || undefined
+                    )
+                  }
+                }}
                 className="h-7 w-7 sm:h-8 sm:w-8 md:h-9 md:w-9 lg:h-10 lg:w-10 rounded-full hover:bg-primary/10"
                 title="Video call"
               >
@@ -440,7 +456,21 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={() => setCallModal({ type: 'audio', direction: 'outgoing', visible: true })}
+                onClick={() => {
+                  const otherUserId = chat.participants.find(p => p !== currentUser?.uid)
+                  if (otherUserId) {
+                    initiateCall(
+                      chat.id,
+                      'audio',
+                      currentUser.uid,
+                      currentUser.displayName || currentUser.email || 'You',
+                      otherUserId,
+                      chatDisplayNameMemo,
+                      otherUserPhotoURL || undefined,
+                      currentUser.photoURL || undefined
+                    )
+                  }
+                }}
                 className="h-7 w-7 sm:h-8 sm:w-8 md:h-9 md:w-9 lg:h-10 lg:w-10 rounded-full hover:bg-primary/10"
                 title="Audio call"
               >
@@ -460,11 +490,11 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
               <DropdownMenuItem onClick={() => setShowSearch(true)}>Search in conversation</DropdownMenuItem>
               <DropdownMenuItem>Mute notifications</DropdownMenuItem>
               <DropdownMenuItem>Block user</DropdownMenuItem>
-              
+
               {/* Group-specific actions */}
               {chat.type === 'group' && (
                 <>
-                  <DropdownMenuItem 
+                  <DropdownMenuItem
                     onClick={handleLeaveGroup}
                     disabled={isLeavingGroup}
                     className="text-destructive focus:text-destructive cursor-pointer"
@@ -472,10 +502,10 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
                     <LogOut className="mr-2 h-3 w-3 sm:h-4 sm:w-4" />
                     {isLeavingGroup ? "Leaving..." : "Exit Group"}
                   </DropdownMenuItem>
-                  
+
                   {/* Show delete group option only for group creator */}
                   {chat.admins?.[0] === currentUser.uid && onDeleteChat && (
-                    <DropdownMenuItem 
+                    <DropdownMenuItem
                       onClick={() => onDeleteChat(chat.id)}
                       className="text-destructive focus:text-destructive cursor-pointer"
                     >
@@ -485,10 +515,10 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
                   )}
                 </>
               )}
-              
+
               {/* Direct chat actions */}
               {chat.type === 'direct' && onDeleteChat && (
-                <DropdownMenuItem 
+                <DropdownMenuItem
                   onClick={() => onDeleteChat(chat.id)}
                   className="text-destructive focus:text-destructive cursor-pointer"
                 >
@@ -496,9 +526,9 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
                   Delete Chat
                 </DropdownMenuItem>
               )}
-              
+
               <DropdownMenuSeparator />
-              <DropdownMenuItem 
+              <DropdownMenuItem
                 onClick={handleLogout}
                 disabled={isLoggingOut}
                 className="text-destructive focus:text-destructive cursor-pointer"
@@ -532,13 +562,13 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
             const isMyMsg = isMyMessage(message)
 
             return (
-              <div 
-                key={message.id} 
+              <div
+                key={message.id}
                 id={`message-${message.id}`}
                 className={cn("flex", isMyMsg ? "justify-end" : "justify-start")}
               >
                 <div className={cn(
-                  "max-w-[90%] xs:max-w-[85%] sm:max-w-[80%] md:max-w-[75%] lg:max-w-[70%] xl:max-w-[65%]", 
+                  "max-w-[90%] xs:max-w-[85%] sm:max-w-[80%] md:max-w-[75%] lg:max-w-[70%] xl:max-w-[65%]",
                   isLastInGroup && "mb-2"
                 )}>
                   {/* Reply indicator */}
@@ -554,8 +584,8 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
                   <div
                     className={cn(
                       "group relative px-2 py-1.5 sm:px-3 sm:py-2 md:px-4 md:py-3 rounded-2xl text-xs sm:text-sm md:text-base",
-                      isMyMsg 
-                        ? "text-white ml-2 sm:ml-4" 
+                      isMyMsg
+                        ? "text-white ml-2 sm:ml-4"
                         : "bg-muted text-foreground mr-2 sm:mr-4",
                       !isFirstInGroup && isMyMsg && "rounded-tr-xl",
                       !isFirstInGroup && !isMyMsg && "rounded-tl-xl",
@@ -567,7 +597,7 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
                       <div className="space-y-2">
                         <Input
                           value={editingMessage.content}
-                          onChange={(e) => setEditingMessage({...editingMessage, content: e.target.value})}
+                          onChange={(e) => setEditingMessage({ ...editingMessage, content: e.target.value })}
                           onKeyDown={(e) => {
                             if (e.key === 'Enter') {
                               handleEditMessage(message.id, editingMessage.content)
@@ -592,9 +622,9 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
                         {message.type === 'image' ? (
                           <div className="space-y-2">
                             <div className="relative group">
-                              <img 
-                                src={message.originalUrl || message.content} 
-                                alt="Shared image" 
+                              <img
+                                src={message.originalUrl || message.content}
+                                alt="Shared image"
                                 className="max-w-full h-auto rounded-lg cursor-pointer transition-transform hover:scale-105 object-cover"
                                 style={{
                                   maxHeight: '200px',
@@ -757,7 +787,7 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
                             {message.content}
                           </div>
                         )}
-                        
+
                         {/* Message metadata */}
                         <div className="mt-1 flex items-center justify-between gap-2 opacity-90">
                           <div className="flex items-center gap-1">
@@ -896,7 +926,7 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
             </Button>
           </div>
           <div className="grid grid-cols-4 gap-1 sm:gap-2">
-            <button 
+            <button
               className="flex flex-col items-center gap-1 p-1.5 sm:p-2 rounded-lg hover:bg-muted/50 transition-colors"
               onClick={() => {
                 const input = document.createElement('input')
@@ -912,7 +942,7 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
               <ImageIcon className="h-4 w-4 sm:h-6 sm:w-6" />
               <span className="text-xs">Photo</span>
             </button>
-            <button 
+            <button
               className="flex flex-col items-center gap-1 p-1.5 sm:p-2 rounded-lg hover:bg-muted/50 transition-colors"
               onClick={() => {
                 const input = document.createElement('input')
@@ -928,7 +958,7 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
               <File className="h-4 w-4 sm:h-6 sm:w-6" />
               <span className="text-xs">Document</span>
             </button>
-            <button 
+            <button
               className="flex flex-col items-center gap-1 p-1.5 sm:p-2 rounded-lg hover:bg-muted/50 transition-colors"
               onClick={() => {
                 const input = document.createElement('input')
@@ -944,7 +974,7 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
               <VideoIcon className="h-4 w-4 sm:h-6 sm:w-6" />
               <span className="text-xs">Video</span>
             </button>
-            <button 
+            <button
               className="flex flex-col items-center gap-1 p-1.5 sm:p-2 rounded-lg hover:bg-muted/50 transition-colors"
               onClick={() => {
                 setShowAttachMenu(false)
@@ -1041,8 +1071,8 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
         {showEmojiPicker && (
           <div className="mt-2 relative">
             <div className="absolute bottom-full left-0 right-0 mb-2 z-50">
-              <EmojiPicker 
-                onEmojiSelect={addEmoji} 
+              <EmojiPicker
+                onEmojiSelect={addEmoji}
                 onClose={() => setShowEmojiPicker(false)}
               />
             </div>
@@ -1068,7 +1098,7 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
         }}
         onVideoCall={() => {
           closeViewer()
-          toast.info("Video call feature coming soon!")
+          startCall(chat.id, 'video', chatDisplayNameMemo, otherUserPhotoURL || undefined)
         }}
         onInfo={() => {
           closeViewer()
@@ -1076,38 +1106,36 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
         }}
       />
 
-      {/* Call modal */}
-      {callModal?.visible && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-          <div className="bg-background rounded-2xl shadow-2xl p-8 flex flex-col items-center min-w-[320px] max-w-xs">
-            <Avatar className="h-20 w-20 mb-4">
-              <AvatarImage src={otherUserPhotoURL || '/placeholder-user.jpg'} alt={chatDisplayNameMemo} />
-              <AvatarFallback>{chatDisplayNameMemo.charAt(0)}</AvatarFallback>
-            </Avatar>
-            <div className="text-center mb-2">
-              <div className="font-semibold text-lg">{chatDisplayNameMemo}</div>
-              <div className="text-muted-foreground text-sm mb-1">
-                {callModal.direction === 'outgoing' ? (callModal.type === 'audio' ? 'Calling (Audio)...' : 'Calling (Video)...') : (callModal.type === 'audio' ? 'Incoming Audio Call...' : 'Incoming Video Call...')}
-              </div>
-            </div>
-            <div className="flex gap-4 mt-4">
-              {callModal.direction === 'incoming' ? (
-                <>
-                  <Button size="lg" className="bg-green-500 hover:bg-green-600 text-white rounded-full" onClick={() => setCallModal(null)}>
-                    Accept
-                  </Button>
-                  <Button size="lg" className="bg-red-500 hover:bg-red-600 text-white rounded-full" onClick={() => setCallModal(null)}>
-                    Decline
-                  </Button>
-                </>
-              ) : (
-                <Button size="lg" className="bg-red-500 hover:bg-red-600 text-white rounded-full" onClick={() => setCallModal(null)}>
-                  End Call
-                </Button>
-              )}
-            </div>
-          </div>
-        </div>
+      {/* Jitsi Call */}
+      <JitsiCall
+        isOpen={callState.isOpen}
+        onClose={endCall}
+        roomName={callState.roomName}
+        callType={callState.callType}
+        userName={currentUser?.displayName || currentUser?.email || 'User'}
+        userEmail={currentUser?.email}
+        otherUserName={callState.otherUserName || chatDisplayNameMemo}
+      />
+
+      {/* Incoming Call Notification */}
+      {incomingCall && (
+        <IncomingCallNotification
+          callerName={incomingCall.callerName}
+          callerPhoto={incomingCall.callerPhoto}
+          callType={incomingCall.callType}
+          onAccept={acceptCall}
+          onReject={rejectCall}
+        />
+      )}
+
+      {/* Outgoing Call Notification */}
+      {outgoingCall && (
+        <OutgoingCallNotification
+          calleeName={outgoingCall.calleeName}
+          calleePhoto={outgoingCall.calleePhoto}
+          callType={outgoingCall.callType}
+          onCancel={cancelCall}
+        />
       )}
     </div>
   )
