@@ -29,6 +29,8 @@ import { JitsiCall } from "@/components/jitsi-call"
 import { useJitsiCall } from "@/hooks/use-jitsi-call"
 import { IncomingCallNotification } from "@/components/incoming-call-notification"
 import { OutgoingCallNotification } from "@/components/outgoing-call-notification"
+import { TypingIndicator } from "@/components/typing-indicator"
+import { TypingService } from "@/lib/typing-service"
 
 interface ChatWindowProps {
   chat: Chat
@@ -65,6 +67,10 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
   const [selectedVideo, setSelectedVideo] = useState<File | null>(null)
   const [isUploadingVideo, setIsUploadingVideo] = useState(false)
   const [playingVideoId, setPlayingVideoId] = useState<string | null>(null)
+
+  // Typing indicator state
+  const [typingUsers, setTypingUsers] = useState<string[]>([])
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // Get chat display name from chat object
   const chatDisplayNameMemo = useMemo(() => {
@@ -107,6 +113,33 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [chat.id, messages, currentUser?.uid]);
+
+  // Subscribe to typing status
+  useEffect(() => {
+    if (!currentUser?.uid) return
+
+    const unsubscribe = TypingService.subscribeToTypingStatus(
+      chat.id,
+      currentUser.uid,
+      (users) => {
+        setTypingUsers(users)
+      }
+    )
+
+    return unsubscribe
+  }, [chat.id, currentUser?.uid])
+
+  // Cleanup typing status on unmount
+  useEffect(() => {
+    return () => {
+      if (currentUser?.uid) {
+        TypingService.cleanupTypingStatus(chat.id, currentUser.uid)
+      }
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current)
+      }
+    }
+  }, [chat.id, currentUser?.uid])
 
   const handleEditMessage = useCallback(async (messageId: string, newContent: string) => {
     const result = await ChatService.editMessage(chat.id, messageId, newContent, currentUser.uid)
@@ -847,7 +880,14 @@ export function ChatWindow({ chat, messages, onSendMessage, onShowProfile, onBac
                 </div>
               </div>
             )
-          })}
+          })
+          }
+
+          {/* Typing indicator */}
+          {typingUsers.length > 0 && (
+            <TypingIndicator typingUsers={typingUsers} />
+          )}
+
           <div ref={messagesEndRef} />
         </div>
       </ScrollArea>

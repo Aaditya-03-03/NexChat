@@ -27,29 +27,29 @@ export default function SignInPage() {
     setIsLoading(true)
 
     const result = await signIn(email, password)
-    
+
     if (result.success) {
       toast.success("Signed in successfully!")
       router.push("/dashboard")
     } else {
       toast.error(result.error || "Failed to sign in")
     }
-    
+
     setIsLoading(false)
   }
 
   const handleGoogleSignIn = async () => {
     setIsLoading(true)
-    
+
     const result = await signInWithGoogle()
-    
+
     if (result.success) {
       toast.success("Signed in with Google successfully!")
       router.push("/dashboard")
     } else {
       toast.error(result.error || "Failed to sign in with Google")
     }
-    
+
     setIsLoading(false)
   }
 
@@ -63,11 +63,11 @@ export default function SignInPage() {
         <div className="space-y-3 md:space-y-4">
           <div className="space-y-2">
             <Label htmlFor="email" className="text-sm md:text-base">Email</Label>
-            <Input 
-              id="email" 
-              type="email" 
-              placeholder="name@example.com" 
-              required 
+            <Input
+              id="email"
+              type="email"
+              placeholder="name@example.com"
+              required
               className="glass-input h-10 md:h-11"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -125,8 +125,8 @@ export default function SignInPage() {
           </div>
         </div>
         <div className="mt-4 grid grid-cols-1 gap-2">
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             className="glass-button h-10 md:h-11"
             onClick={handleGoogleSignIn}
             disabled={isLoading}
